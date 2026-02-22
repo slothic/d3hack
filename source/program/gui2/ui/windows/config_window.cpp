@@ -416,7 +416,6 @@ namespace d3::gui2::ui::windows {
                 ImGui::PushID(filter_id);
                 if (ImGui::Button(overlay_.tr("gui.filter_clear", "Clear filter"))) {
                     filter.Clear();
-                    changed = true;
                 }
                 ImGui::PopID();
             }
@@ -1014,7 +1013,7 @@ namespace d3::gui2::ui::windows {
 
                 constexpr std::array<int, 5> kCombatIndices       = {0, 1, 2, 6, 12};
                 constexpr std::array<int, 8> kLootCraftingIndices = {3, 4, 7, 8, 13, 14, 15, 16};
-                constexpr std::array<int, 2> kProgressionIndices  = {11, 17};
+                constexpr std::array<int, 3> kProgressionIndices  = {11, 17, 18};
                 constexpr std::array<int, 3> kMiscIndices         = {5, 9, 10};
 
                 bool rendered_any = false;
@@ -1473,7 +1472,7 @@ namespace d3::gui2::ui::windows {
                     restart_note_[0] = '\0';
                 }
                 cfg                   = normalized;
-                lang_restart_pending_ = false;
+                lang_restart_pending_ = cfg.gui.language_override != global_config.gui.language_override;
                 overlay_.set_ui_dirty(false);
                 if (auto *notifications = overlay_.notifications_window())
                     notifications->AddNotification(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), 4.0f, overlay_.tr("gui.notify_reloaded", "Reloaded config.toml"));

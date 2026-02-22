@@ -109,7 +109,7 @@ NestingPortals = true
 # Enable super god mode (invulnerable + debug flags).
 SuperGodMode = false
 # Infinite resource/MP (also enabled implicitly by SuperGodMode).
-InfiniteMP = false
+InfiniteMP = true
 # Extra Greater Rift orbs when killing elites.
 ExtraGreaterRiftOrbsOnEliteKill = false
 # Master toggle for gameplay-altering cheats/hacks.

@@ -387,7 +387,7 @@ namespace d3 {
 
         /* Spawn extra progress orbs */
         if (cheats.extra_gr_orbs_elites)
-            jest.Patch<ins::Movz>(0x844BE4, reg::W19, 999);
+            jest.Patch<ins::Movz>(PatchTable("patch_cheat_extra_gr_orbs_elites_01_movz"), reg::W3, 999);
 
         /* Drop any item (Staff of Herding, etc) */
         if (cheats.drop_anything)

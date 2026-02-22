@@ -139,6 +139,7 @@
     /* Patch_port_cheat_codes */
     {util::ModuleIndex::Main, 0x00A2AD04, "patch_cheat_alloc_errors_01_movz"},              // MOVZ | W8
     {util::ModuleIndex::Main, 0x00A37C70, "patch_cheat_alloc_errors_02_bytes"},             // patch: E0 03 00 91
+    {util::ModuleIndex::Main, 0x00844BE4, "patch_cheat_extra_gr_orbs_elites_01_movz"},      // MOVZ | W3 | 999
 
     {util::ModuleIndex::Main, 0x00504C78, "patch_cheat_drop_anything_01_movn"},             // MOVN | W0
 

@@ -40,7 +40,7 @@ See: [Resolution Hack (ResHack) overview](#resolution-hack-reshack).
 - **Boot report + hook registry**: boot stages and enabled hooks/patches are recorded and printed after ShellInitialized.
 - **Schema-driven config**: config schema powers TOML IO + GUI labels/help and restart-required rules; runtime apply reports restart-required changes.
 - **GUI overlay stability**: NVN-backed ImGui textures, triple-buffered draw buffers, and safer texture lifetime to reduce tab/docking artifacts.
-- **ImGui polish status**: localization and config-window polish are implemented; screenshot/manual runtime validation is intentionally deferred to the next validation pass.
+- **ImGui polish status**: localization and config-window polish are implemented; use the Validation checklist below after runtime/UI edits.
 - **GUI theming + OSK**: built-in themes with optional overrides from `sd:/config/d3hack-nx/themes/` and an on-screen keyboard for text entry.
 - **GUI language hot-swap**: translations update immediately; restart recommended for full glyph coverage.
 - **Crash diagnostics**: user exception and ErrorManager dumps are written to SD for post-crash triage.
@@ -54,17 +54,18 @@ ResHack keeps the swapchain output at your chosen size while relying on dynamic 
 
 Terminology
 - OutputTarget and ClampTextureResolution are vertical heights in pixels; width is derived as 16:9.
-- OutputHandheldScale is a percent (0 = auto/stock), and OutputTargetHandheld is derived when set to 0.
+- OutputHandheldScale is a percent (0 = auto/stock), and handheld output target is derived from OutputTarget + OutputHandheldScale.
 
 Current conservative defaults (from examples/config/d3hack-nx/config.toml)
 - OutputTarget = 1080 (1920x1080).
 - OutputHandheldScale = 85.
 - MinResScale = 80, MaxResScale = 100.
 - ExperimentalScheduler = false.
+- Built-in defaults in code can differ when `config.toml` is missing; the example file is the recommended baseline.
 
 ### How it works
 
-- **Config**: `[resolution_hack]` in `config.toml` sets OutputTarget, OutputHandheldScale (percent; 0=auto/stock), OutputTargetHandheld (derived), SpoofDocked, MinResScale, MaxResScale, ClampTextureResolution (0=off, 100-9999), and ExperimentalScheduler. ClampTextureResolution is currently ignored because the clamp hook is disabled.
+- **Config**: `[resolution_hack]` in `config.toml` sets OutputTarget, OutputHandheldScale (percent; 0=auto/stock), SpoofDocked, MinResScale, MaxResScale, ClampTextureResolution (0=off, 100-9999), and ExperimentalScheduler. ClampTextureResolution is currently ignored because the clamp hook is disabled.
 - **Config (extra)**: `[resolution_hack.extra]` can override display mode fields (MSAALevel, BitDepth, RefreshRate, and window/UI/render dimensions).
 - **Patches**: PatchResolutionTargets rewrites the display mode table to match OutputTarget and applies NVN heap headroom when output height > 1280.
 - **Hooks**: variable resolution hooks remain active; the NVN texture clamp hooks are currently disabled.
@@ -165,7 +166,7 @@ Key sections:
 - `[seasons]`: SeasonNumber, AllowOnlinePlay, SpoofPtr.
 - `[events]`: seasonal flags + SeasonMapMode (MapOnly, OverlayConfig, Disabled).
 - `[challenge_rifts]`: enable/disable, randomize, or define a range.
-- `[rare_cheats]` (includes SuperGodMode, InfiniteMP, and ExtraGreaterRiftOrbsOnEliteKill), `[overlays]`, `[debug]` (EnableErrorTraces, SpoofNetworkFunctions).
+- `[rare_cheats]` (includes SuperGodMode, InfiniteMP, and ExtraGreaterRiftOrbsOnEliteKill), `[loot_modifiers]`, `[overlays]`, `[debug]` (EnableErrorTraces, EnableExceptionHandler, EnableDebugFlags, EnablePubFileDump, EnableOeNotificationHook, LogOeNotificationMessages).
 - `[gui]`: Enabled/Visible/AllowLeftStickPassthrough (boot-latched; Visible = auto-open on boot), Language (override; hot-swap, restart for full glyphs).
 
 ### 4) (Optional) Challenge Rift data
@@ -293,7 +294,7 @@ cmake --build --preset switch-iwyu
 ## Validation (Dev)
 
 - `make -j`
-- If runtime behavior changes: `make ryu-tail 2> /dev/null` and confirm `[D3Hack|exlaunch] ShellInitialized` appears within ~10s.
+- If runtime behavior changes: `RYU_GAME_PATH=/path/to/DiabloIIINX64r.nss make ryu-tail 2> /dev/null` and confirm `[D3Hack|exlaunch] ShellInitialized` appears within ~10s.
 - If GUI behavior changes: wait ~10s after ShellInitialized, then `make ryu-screenshot`.
 
 ---

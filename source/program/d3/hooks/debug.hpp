@@ -419,7 +419,7 @@ namespace d3 {
                 u64 length = 0;
                 if (!ReadVarint(bytes, len, idx, length))
                     break;
-                if (idx + length > len)
+                if (length > static_cast<u64>(len - idx))
                     break;
                 if (field == 1) {
                     f1   = static_cast<u32>(length);
@@ -1015,16 +1015,46 @@ namespace d3 {
                 if (cur_season != 0u) {
                     const uintptr_t player_addr = reinterpret_cast<uintptr_t>(ptPlayer);
                     const uintptr_t sentinel    = player_addr + kRewardsListSentinelOff;
-                    uintptr_t       node        = *reinterpret_cast<uintptr_t const *>(player_addr + kRewardsListHeadOff);
+                    constexpr size_t kMaxRewardNodes = 4096;
+                    uintptr_t        node            = 0;
+                    const uintptr_t  head_ptr_addr   = player_addr + kRewardsListHeadOff;
+                    if (IsProbablyReadablePtr(head_ptr_addr)) {
+                        node = *reinterpret_cast<uintptr_t const *>(head_ptr_addr);
+                    } else {
+                        PRINT("[cr_reward_claim] head_ptr_unreadable addr=0x%lx", head_ptr_addr)
+                    }
 
                     bool      has_current       = false;
                     uintptr_t first_zero        = 0;
                     uint32    first_zero_before = 0;
                     size_t    visited           = 0;
+                    bool      scan_aborted      = false;
 
                     while (node != 0 && node != sentinel) {
                         ++visited;
-                        const uint32 season_earned = *reinterpret_cast<uint32 const *>(node + kNodeSeasonEarnedOff);
+                        if (visited > kMaxRewardNodes) {
+                            scan_aborted = true;
+                            PRINT(
+                                "[cr_reward_claim] scan_abort reason=max_nodes visited=%zu limit=%zu",
+                                visited,
+                                kMaxRewardNodes
+                            )
+                            break;
+                        }
+                        const uintptr_t season_addr = node + kNodeSeasonEarnedOff;
+                        const uintptr_t next_addr   = node + kNodeNextOff;
+                        if (!IsProbablyReadablePtr(season_addr) || !IsProbablyReadablePtr(next_addr)) {
+                            scan_aborted = true;
+                            PRINT(
+                                "[cr_reward_claim] scan_abort reason=unreadable node=0x%lx season_ptr=0x%lx next_ptr=0x%lx idx=%zu",
+                                node,
+                                season_addr,
+                                next_addr,
+                                visited
+                            )
+                            break;
+                        }
+                        const uint32 season_earned = *reinterpret_cast<uint32 const *>(season_addr);
                         PRINT(
                             "[cr_reward_claim] node=0x%lx season_earned=%u idx=%zu",
                             node,
@@ -1039,24 +1069,34 @@ namespace d3 {
                             first_zero        = node;
                             first_zero_before = season_earned;
                         }
-                        node = *reinterpret_cast<uintptr_t const *>(node + kNodeNextOff);
+                        node = *reinterpret_cast<uintptr_t const *>(next_addr);
                     }
                     PRINT(
-                        "[cr_reward_claim] scan_done visited=%zu has_current=%d first_zero=0x%lx",
+                        "[cr_reward_claim] scan_done visited=%zu has_current=%d first_zero=0x%lx aborted=%d",
                         visited,
                         has_current ? 1 : 0,
-                        first_zero
+                        first_zero,
+                        scan_aborted ? 1 : 0
                     )
 
-                    if (!has_current && first_zero != 0) {
-                        *reinterpret_cast<uint32 *>(first_zero + kNodeSeasonEarnedOff) = cur_season;
-                        const uint32 after                                             = *reinterpret_cast<uint32 const *>(first_zero + kNodeSeasonEarnedOff);
-                        PRINT(
-                            "[cr_reward_claim] tamper node=0x%lx season_earned %u -> %u",
-                            first_zero,
-                            first_zero_before,
-                            after
-                        )
+                    if (!scan_aborted && !has_current && first_zero != 0) {
+                        const uintptr_t first_zero_season_addr = first_zero + kNodeSeasonEarnedOff;
+                        if (!IsProbablyReadablePtr(first_zero_season_addr)) {
+                            PRINT(
+                                "[cr_reward_claim] tamper_skip reason=unreadable node=0x%lx season_ptr=0x%lx",
+                                first_zero,
+                                first_zero_season_addr
+                            )
+                        } else {
+                            *reinterpret_cast<uint32 *>(first_zero_season_addr) = cur_season;
+                            const uint32 after                                   = *reinterpret_cast<uint32 const *>(first_zero_season_addr);
+                            PRINT(
+                                "[cr_reward_claim] tamper node=0x%lx season_earned %u -> %u",
+                                first_zero,
+                                first_zero_before,
+                                after
+                            )
+                        }
                     }
                 }
             }

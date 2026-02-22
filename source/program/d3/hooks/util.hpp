@@ -14,12 +14,18 @@ namespace d3 {
         // float PowerGetFormulaValueAtLevel(AttribGroupID idFastAttrib, const ActorCommonData *ptACD, SNO snoPower, uint8 *pbFormula, int32 nFormulaSize, int32 nLevel)
         static auto Callback(AttribGroupID idFastAttrib, ActorCommonData *ptACD, SNO snoPower, uint8 *pbFormula, int32 nFormulaSize, int32 nLevel) -> float {
             auto ret = Orig(idFastAttrib, ptACD, snoPower, pbFormula, nFormulaSize, nLevel);
-            if (snoPower != 0x50860)
+            if (!global_config.rare_cheats.active || snoPower != 0x50860)
+                return ret;
+            const float mult = static_cast<float>(global_config.rare_cheats.attack_speed);
+            if (mult <= 0.0f || mult == 1.0f)
                 return ret;
             FastAttribKey tKey;
-            tKey.nValue = ATTACKS_PER_SECOND_TOTAL, ACD_AttributesSetFloat(ptACD, tKey, 3.0f);
+            tKey.nValue = ATTACKS_PER_SECOND_TOTAL;
+            if (ptACD != nullptr) {
+                ACD_AttributesSetFloat(ptACD, tKey, 3.0f);
+            }
             PRINT_EXPR("ORIG ATKSPD: %f", ret);
-            return ret * 5.5f;
+            return ret * mult;
         }
     };
 
