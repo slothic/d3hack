@@ -123,3 +123,4 @@ FUNC_PTR(blz_make_stringfb,                blz::string (*)(void *,...));
 //   18 jpJP
 //   19 ztCN
 FUNC_PTR(XLocaleToString,                         LPCSTR (*)(uint32));
+FUNC_PTR(TieredLootRunGetLevel,                    int32 (*)());  // d3hack-custom

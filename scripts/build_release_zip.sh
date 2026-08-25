@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# STALE 2026-08-22 -- DO NOT USE. It expects src/deploy/{exefs,romfs}, which do not exist,
+# and writes a 1.4 KB README unrelated to the hand-written one releases actually ship.
+# Use src/scripts/pack_release.py instead. Kept only for the 2.7.6 pin notes below.
 set -euo pipefail
 
 usage() {

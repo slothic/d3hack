@@ -29,6 +29,11 @@ FUNC_PTR(SetCraftLevel,                           void (*)(const CrafterType eTy
 FUNC_PTR(Crafting_GetTransmogSlot,   InventorySlotType (*)(GBID gbidItem));
 FUNC_PTR(ExperienceSetLevel,                      void (*)(const ACDID idACD, int32 nLevels, const BOOL fUpdateClient));
 FUNC_PTR(ExperienceDropLootForAll,                void (*)(ActorCommonData *tACDLootee, ACDID idACDPrimaryLooter, uint32 dwGameEventNumber, BOOL fAutoIdentify, float flCameraBiasDist));
+// d3hack-custom: 0x4C8C20 -- `(SGameRuleBits >> nBit) & 1`, a pure read through the game
+// singleton. AddExperience tests bit 0x10 at 0x79FE74 and returns without granting anything if
+// it is set, so anything hooking the front of that routine has to ask the same question before
+// it commits state it cannot take back.
+FUNC_PTR(GameRuleFlagTest,                       BOOL (*)(int32 nBit));
 FUNC_PTR(SCosmeticItems_LearnCosmeticItem,        BOOL (*)(const ACDID idACDPlayer, const GBID gbidItem, CosmeticItemType eType, bool bPurchased));
 FUNC_PTR(SCosmeticItems_LearnPet,                 BOOL (*)(const ACDID idACDPlayer, const GBID gbidItem, bool bPurchased));
 FUNC_PTR(SItemPlayerExtractLegendaryPower,        BOOL (*)(Player *tPlayer, GBID gbidItem, GameError *eGameError));
@@ -38,7 +43,14 @@ FUNC_PTR(SCrafterIncrementLevel,                  BOOL (*)(Player *tPlayer, Craf
 FUNC_PTR(SItemCrafting_LearnRecipe,               void (*)(const ACDID idACDPlayer, const GBID gbidRecipe));
 FUNC_PTR(sCrafterOnLevelUp,                       void (*)(const Player *tPlayer, CrafterType eType, const BOOL fChangedRank, const BOOL fSendToClient));
 FUNC_PTR(LootRollForAncientLegendary,             void (*)(LootSpecifier *tSpecifier, const ACDID idACDLooter));
+FUNC_PTR(LootItemIsLegendary,                     BOOL (*)(GBID gbidItem));  // d3hack-custom
 FUNC_PTR(GlobalSNOGet,                             SNO (*)(const SNO eGlobalSNO));
+FUNC_PTR(CameraSetZoomValue,                      void (*)(int nPlayer, float flZoom, float flBlendSeconds));  // d3hack-custom
+FUNC_PTR(CameraApplyObserverByName,               void (*)(int nView, const char *szObserver, int nFlags));  // d3hack-custom
+FUNC_PTR(SNOIsLoaded,                             BOOL (*)(int nGroup, int nSno));  // d3hack-custom: returns a BOOL, not a pointer
 FUNC_PTR(GBEnumerate,                             void (*)(GameBalanceType eType, GBHandleList *listResults));
+FUNC_PTR(GBAssetGet,                              void *(*)(void *ptMgr, SNO sno));
+FUNC_PTR(GBRecordGet,                             void *(*)(const void *ptKey, void **ptHandle, s32 *pfFlag));
+FUNC_PTR(GBRecordRelease,                         void (*)(void **ptHandle));
 FUNC_PTR(GBGetHandlePool,                GBHandlePool* (*)());
 FUNC_PTR(SNOToString,                       CRefString (*)(const SNOGroup snoGroup, const SNO snoHandle, const BOOL fUsedForXMLFields));

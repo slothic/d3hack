@@ -93,9 +93,16 @@ if(EXL_UNAME MATCHES "^MINGW")
 endif()
 configure_file(${EXL_SPECS_TEMPLATE} ${CMAKE_BINARY_DIR}/exl.specs @ONLY)
 
-file(GLOB_RECURSE EXL_SOURCES_C CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/source/*.c)
-file(GLOB_RECURSE EXL_SOURCES_CXX CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/source/*.cpp)
-file(GLOB_RECURSE EXL_SOURCES_ASM CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/source/*.s)
+# d3hack-custom: CONFIGURE_DEPENDS deliberately REMOVED from the globs below.
+# It makes CMake re-glob the whole source tree on every single build -- "Re-checking globbed
+# directories..." was 12.7 s of a 43 s no-op build, measured with `ninja -d explain`. Over a
+# Docker bind mount that cost is paid every time, forever.
+# Trade-off: ADDING OR REMOVING A SOURCE FILE now needs a reconfigure --
+#     cmake --preset switch
+# which is a rare, deliberate action; rebuilding after an edit is not.
+file(GLOB_RECURSE EXL_SOURCES_C ${PROJECT_SOURCE_DIR}/source/*.c)
+file(GLOB_RECURSE EXL_SOURCES_CXX ${PROJECT_SOURCE_DIR}/source/*.cpp)
+file(GLOB_RECURSE EXL_SOURCES_ASM ${PROJECT_SOURCE_DIR}/source/*.s)
 
 list(FILTER EXL_SOURCES_CXX EXCLUDE REGEX "/source/third_party/imgui/examples/")
 list(FILTER EXL_SOURCES_CXX EXCLUDE REGEX "/source/third_party/imgui/backends/")
@@ -128,6 +135,16 @@ add_custom_target(exl-build-git-header ALL
     BYPRODUCTS "${EXL_BUILD_GIT_HEADER}"
     VERBATIM
 )
+
+# d3hack-custom: the include-hygiene TU costs ~8 s of every build and contributes no symbols
+# (nm: zero strong symbols; linker map: 163 of 164 sections discarded). Opt in when you want it.
+#   ./src/build.sh configure  after changing this, then rebuild
+option(EXL_INCLUDE_HYGIENE "Compile the include-hygiene TU" OFF)
+if(EXL_INCLUDE_HYGIENE)
+    set_source_files_properties(
+        "${PROJECT_SOURCE_DIR}/source/program/include_hygiene.cpp"
+        PROPERTIES COMPILE_DEFINITIONS D3HACK_INCLUDE_HYGIENE)
+endif()
 
 add_executable(${EXL_TARGET_NAME} ${EXL_SOURCES_ASM} ${EXL_SOURCES_C} ${EXL_SOURCES_CXX})
 add_dependencies(${EXL_TARGET_NAME} exl-build-git-header)
@@ -177,7 +194,7 @@ endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/SwitchTools.cmake)
 
-file(GLOB EXL_BINARIES CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/data/*.bin")
+file(GLOB EXL_BINARIES "${PROJECT_SOURCE_DIR}/data/*.bin")
 if(EXL_BINARIES)
     target_embed_binaries(${EXL_TARGET_NAME} ${EXL_BINARIES})
 endif()
@@ -193,7 +210,7 @@ endif()
 
 set(EXL_LINK_FLAGS
     "-specs=${CMAKE_BINARY_DIR}/exl.specs"
-    "-g"
+    "-g1"
     ${EXL_ARCH_FLAGS}
     "-Wl,-Map,${CMAKE_BINARY_DIR}/${EXL_TARGET_NAME}.map"
     "-nostartfiles"

@@ -7,6 +7,7 @@ namespace d3 {
     void SetupUtilityHooks();
     void SetupResolutionHooks();
     void SetupDebuggingHooks();
+    void SetupParagonFieldWidening();  // d3hack-custom
     void SetupSeasonEventHooks();
     void SetupLobbyHooks();
 }  // namespace d3
@@ -19,6 +20,13 @@ namespace d3::hook_registry {
 
         static auto EnabledResolutionHooks(const PatchConfig &config) -> bool {
             return config.resolution_hack.active;
+        }
+
+        // d3hack-custom: not a debug feature. The paragon serialization field has to be
+        // widened whenever the level cap is raised past the stock 20000, whatever the logging
+        // settings are, or the level truncates on the wire once it passes 32767.
+        static auto EnabledParagonFieldWidening(const PatchConfig &config) -> bool {
+            return config.rare_cheats.max_paragon_level > 20000;
         }
 
         static auto EnabledDebuggingHooks(const PatchConfig &config) -> bool {
@@ -63,6 +71,14 @@ namespace d3::hook_registry {
                 .feature       = "debug.active or challenge_rifts.active",
                 .install       = &SetupDebuggingHooks,
                 .enabled       = &EnabledDebuggingHooks,
+                .toggle_safety = ToggleSafety::RestartRequired,
+            },
+            {
+                .name          = "ParagonFieldWidening",  // d3hack-custom
+                .owner         = "d3/hooks/debug",
+                .feature       = "rare_cheats.max_paragon_level > 20000",
+                .install       = &SetupParagonFieldWidening,
+                .enabled       = &EnabledParagonFieldWidening,
                 .toggle_safety = ToggleSafety::RestartRequired,
             },
             {

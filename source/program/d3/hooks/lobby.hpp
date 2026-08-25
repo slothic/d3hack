@@ -126,13 +126,31 @@ namespace d3 {
             case ATTRIBUTE_SET_ITEM_DISCOUNT:
                 return 4;
             case PARAGON_BONUS:
-            case PARAGONCAPENABLED:
-                // if (KeyGetParam(tKey) != -1) {
-                //     PRINT_EXPR("%i %li", tKey.nValue, KeyGetParam(tKey))
-                // }
-                // CheckStringList(tKey.nValue, AttribToStr(tKey));
-                // CheckStringList(tKey.nValue, ParamToStr(KeyGetFullAttrib(tKey), KeyGetParam(tKey)));
-                // return FastAttribGetValueInt(*(reinterpret_cast<FastAttribGroup **>(tACD) + 45), tKey);
+                // d3hack-custom: PARAGON_BONUS must keep returning the REAL value -- it is the
+                // spent-points count itself, not a cap. Only the cap flag below is overridden.
+                return FastAttribGetValueInt(*(reinterpret_cast<FastAttribGroup **>(tACD) + 45), tKey);
+
+            // d3hack-custom: the 2.7.6 seasonal paragon cap (200 per non-Core category) is
+            // gated PER HERO by this attribute, not only by the community-buff flag.
+            // g_varParagonCap is already forced false in ApplySeasonEventFlags and the pubfile
+            // swap already sends CommunityBuffParagonCap "0" -- and the cap still applied in
+            // play. Same shape as the seasonal-items gates: the community-buff flag was
+            // necessary but not sufficient, and a separate per-hero attribute was the real
+            // gate. Note this is a DIFFERENT limit from rare_cheats.paragon_stat_cap, which
+            // scales the per-attribute getter at 0x5271F0 and is confirmed applying at x5.
+            case PARAGONCAPENABLED: {
+                // Report the raw value once so the next run says whether this was actually
+                // the binding cap, instead of us having to infer it from the UI.
+                static bool s_reported = false;
+                if (!s_reported) {
+                    s_reported = true;
+                    const auto raw = FastAttribGetValueInt(
+                        *(reinterpret_cast<FastAttribGroup **>(tACD) + 45), tKey);
+                    PRINT("[d3hack-custom] PARAGONCAPENABLED raw=%d -> forced 0",
+                          static_cast<int>(raw))
+                }
+                return 0;
+            }
             default:
                 return FastAttribGetValueInt(*(reinterpret_cast<FastAttribGroup **>(tACD) + 45), tKey);
             }

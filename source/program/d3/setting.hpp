@@ -6,12 +6,8 @@
 #include "program/logging.hpp"
 #include <cstdio>
 
-#define D3HACK_VER     "D3Hack v3.1"
-#define D3HACK_AUTHOR  "jester"
-#define D3HACK_WEB     "https://jester.dev"
-#define CRLF           "\n"
-#define D3HACK_DESC    "Realtime hack for Diablo III: Eternal Collection" CRLF D3HACK_WEB
-#define D3HACK_FULLVER D3HACK_VER " by " D3HACK_AUTHOR " - Diablo III: Eternal Collection [v" D3CLIENT_VER "]"
+#include "program/d3/branding.hpp"
+#define D3HACK_FULLVER D3HACK_TAGLINE " [v" D3CLIENT_VER "]"
 
 // #ifdef EXL_DEBUG
 // Compile-time debug logging gates.

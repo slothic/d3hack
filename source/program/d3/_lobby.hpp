@@ -202,7 +202,7 @@ namespace d3 {
 
                 // nn::os::SleepThread(nTimer);
                 ImageTextureFrame_ctor(&iframe, "Items:p4_SeasonalCache_Icon");
-                msg = "{c_gold}" D3HACK_WEB "{/c}";
+                msg = "{c_gold}" D3HACK_TAGLINE "{/c}";
                 DisplayLongMessageForPlayer(&msg, ptSPlayer, &iframe, 0);
 
                 // nn::os::SleepThread(nTimer);

@@ -1128,7 +1128,7 @@ namespace d3::gui2::ui::windows {
             render_subgroup_header("gui.loot_cluster_progression", "Progression", false);
             FormLayout progression_layout = begin_form_layout("cfg_loot_overrides_progression_form", progression_max_label);
             int        tiered_level       = cfg.loot_modifiers.TieredLootRunLevel;
-            if (slider_int_row(progression_layout, overlay_.tr("gui.loot_tiered_run_level", "Tiered loot run level"), "##loot_tiered_run_level", &tiered_level, 0, 150, "%d", 0, false)) {
+            if (slider_int_row(progression_layout, overlay_.tr("gui.loot_tiered_run_level", "Tiered loot run level"), "##loot_tiered_run_level", &tiered_level, 0, 5000, "%d", 0, false)) {
                 cfg.loot_modifiers.TieredLootRunLevel = tiered_level;
                 overlay_.set_ui_dirty(true);
             }

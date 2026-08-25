@@ -319,6 +319,177 @@ namespace d3 {
         }
     };
 
+    // d3hack-custom: dump the bitfield field-descriptor whenever a value overflows its
+    // declared range. 0xA40AE0 is inside the serializer, just after the min check:
+    //   x0 = pointer to the value, x1 = field descriptor, x2 = bit buffer
+    //   [x1+0x20] = min   [x1+0x28] = max   [x1+0x4C] = width in bits   [x1+0x30] = flags
+    // Only fires on overflow and is rate-limited, so it is safe to leave installed.
+    HOOK_DEFINE_INLINE(Diag_BitfieldRange) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            static int s_logged = 0;
+            const auto pVal = static_cast<uintptr_t>(ctx->X[0]);
+            const auto pDsc = static_cast<uintptr_t>(ctx->X[1]);
+            if (pVal < 0x8000000u || pDsc < 0x8000000u)
+                return;
+            const s32 value = *reinterpret_cast<const s32 *>(pVal);
+            const s32 vMin  = *reinterpret_cast<const s32 *>(pDsc + 0x20);
+            const s32 vMax  = *reinterpret_cast<const s32 *>(pDsc + 0x28);
+            const s16 nBits = *reinterpret_cast<const s16 *>(pDsc + 0x4C);
+            const u8  flags = *reinterpret_cast<const u8 *>(pDsc + 0x30);
+            // Widen ANY range-bounded field that a value overflows, by the MINIMUM number
+            // of bits needed. Both paragon level and paragon bonus values can exceed their
+            // declared ranges once the caps are raised, and a failed write silently drops
+            // the session (0xA40AB8 returns 0 rather than asserting). Widening to a fixed
+            // 32 bits previously blew the message buffer, so grow only as far as required.
+            if (vMax == 20000 && nBits == 15) {
+                // FALLBACK PATH ONLY, and superseded by Ctor_WidenParagonField, which
+                // inflates the declared range BEFORE the width is derived and so gets the full
+                // 31 bits on every descriptor built that way. What is left here is a descriptor
+                // that reached the serializer some other route, and all this can safely do is
+                // raise its declared max: rewriting the width of an already-built descriptor
+                // desyncs it from the ones that were not rebuilt (15->16 and 15->18 both grew
+                // every paragon-bearing message, overflowed the send buffer, and 0xA40AB8 then
+                // returned failure silently and dropped the session to the main menu on the
+                // next kill). A descriptor still stuck at 15 bits carries 0..32767 and no more.
+                *reinterpret_cast<s32 *>(pDsc + 0x28) = 32767;
+                if (s_logged < 24) {
+                    ++s_logged;
+                    PRINT("[d3hack-custom] widened field(sig) desc=%p: max 20000 -> %d (width left at 15)",
+                          reinterpret_cast<void *>(pDsc), 32767)
+                }
+                return;
+            }
+            if (value > vMax && vMax > 0 && nBits > 0 && nBits < 30) {
+                s32 needBits = 1;
+                while (needBits < 30 && ((1 << needBits) - 1) < value)
+                    ++needBits;
+                if (needBits > nBits) {
+                    *reinterpret_cast<s32 *>(pDsc + 0x28) = (1 << needBits) - 1;
+                    *reinterpret_cast<s16 *>(pDsc + 0x4C) = static_cast<s16>(needBits);
+                    if (s_logged < 24) {
+                        ++s_logged;
+                        PRINT("[d3hack-custom] widened field desc=%p: val=%d max %d -> %d, bits %d -> %d",
+                              reinterpret_cast<void *>(pDsc), value, vMax, (1 << needBits) - 1,
+                              static_cast<int>(nBits), needBits)
+                    }
+                }
+                return;
+            }
+            if (value <= vMax && value >= vMin)
+                return;
+            if (s_logged >= 24)
+                return;
+            ++s_logged;
+            PRINT(
+                "[d3hack-diag] bitfield OVERFLOW: value=%d min=%d max=%d bits=%d flags=0x%02X desc=%p",
+                value, vMin, vMax, static_cast<int>(nBits), static_cast<unsigned>(flags),
+                reinterpret_cast<void *>(pDsc)
+            )
+        }
+    };
+
+    // d3hack-custom: second serializer variant at 0x67B360 uses a DIFFERENT descriptor
+    // layout than 0xA40AA0:  min=+0x18  max=+0x1C  bits=+0x20 (all int32).
+    // Hooked on the `ldr w10, [x0, #0x1c]` that loads max, so a widen lands in time.
+    HOOK_DEFINE_INLINE(Diag_BitfieldRange2) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            static int s_logged = 0;
+            const auto pDsc = static_cast<uintptr_t>(ctx->X[0]);
+            if (pDsc < 0x8000000u)
+                return;
+            auto *pMin  = reinterpret_cast<s32 *>(pDsc + 0x18);
+            auto *pMax  = reinterpret_cast<s32 *>(pDsc + 0x1C);
+            auto *pBits = reinterpret_cast<s32 *>(pDsc + 0x20);
+            // value lives at [x8 + 0xC]. NOTE: x2 is clobbered at 0x67B370 by
+            // `ldr w2, [x0, #0x20]` (the bit count), so read x8, not x2.
+            const auto pValStruct = static_cast<uintptr_t>(ctx->X[8]);
+            if (pValStruct < 0x8000000u)
+                return;
+            const s32 value = *reinterpret_cast<const s32 *>(pValStruct + 0x0C);
+            // Known paragon-level descriptor: widen on sight, independent of the value we
+            // read. p14 made this value-conditional and it stopped firing, which put the
+            // 20000/15 field back in play and dropped the session on every level-up.
+            if (*pMax == 20000 && *pBits == 15) {
+                *pMax = 32767;  // width left at 15 -- see note above
+                if (s_logged < 24) {
+                    ++s_logged;
+                    PRINT("[d3hack-custom] widened layoutB(sig) desc=%p: max 20000 -> %d (width left at 15)",
+                          reinterpret_cast<void *>(pDsc), 32767)
+                }
+                return;
+            }
+            if (value <= *pMax && value >= *pMin)
+                return;  // in range, nothing to do
+            // Out of range in EITHER direction: report before anything asserts.
+            if (s_logged < 24) {
+                ++s_logged;
+                PRINT("[d3hack-diag] layoutB OUT-OF-RANGE (%s): value=%d min=%d max=%d bits=%d desc=%p",
+                      (value < *pMin) ? "under" : "over",
+                      value, *pMin, *pMax, *pBits, reinterpret_cast<void *>(pDsc))
+            }
+            if (value > *pMax && *pMax > 0 && *pBits > 0 && *pBits < 30) {
+                s32 needBits = 1;
+                while (needBits < 30 && ((1 << needBits) - 1) < value)
+                    ++needBits;
+                if (needBits > *pBits) {
+                    const s32 oldMax  = *pMax;
+                    const s32 oldBits = *pBits;
+                    *pMax  = (1 << needBits) - 1;
+                    *pBits = needBits;
+                    if (s_logged < 24) {
+                        ++s_logged;
+                        PRINT("[d3hack-custom] widened layoutB desc=%p: val=%d max %d -> %d, bits %d -> %d",
+                              reinterpret_cast<void *>(pDsc), value, oldMax, *pMax, oldBits, needBits)
+                    }
+                }
+            }
+        }
+    };
+
+    // d3hack-custom: fires ON the layout-B assert path (0x67B3C0), where x0 is still the
+    // descriptor and x8 the value struct. Reports exactly which values failed the check.
+    HOOK_DEFINE_INLINE(Diag_BitfieldAssertB) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            static int s_n = 0;
+            if (s_n >= 12) return;
+            ++s_n;
+            const auto d = static_cast<uintptr_t>(ctx->X[0]);
+            const auto v = static_cast<uintptr_t>(ctx->X[8]);
+            if (d < 0x10000u || v < 0x10000u) {
+                PRINT("[d3hack-diag] assertB: bad ptrs x0=%p x8=%p", reinterpret_cast<void*>(d), reinterpret_cast<void*>(v))
+                return;
+            }
+            PRINT("[d3hack-diag] assertB: value=%d min=%d max=%d bits=%d desc=%p",
+                  *reinterpret_cast<const s32*>(v + 0x0C),
+                  *reinterpret_cast<const s32*>(d + 0x18),
+                  *reinterpret_cast<const s32*>(d + 0x1C),
+                  *reinterpret_cast<const s32*>(d + 0x20),
+                  reinterpret_cast<void*>(d))
+        }
+    };
+
+    // d3hack-custom: widen the paragon field AT CONSTRUCTION.
+    // 0x6B15F8..0x6B1610: bits = floor(log2(max-min)) + 1. Runtime widening of individual
+    // descriptors desynced (16 bits applied late still dropped the session), so instead
+    // inflate the declared range here, before the width is derived. Every descriptor built
+    // by this path then agrees on the width.
+    HOOK_DEFINE_INLINE(Ctor_WidenParagonField) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            static int s_n = 0;
+            const auto d = static_cast<uintptr_t>(ctx->X[19]);
+            if (d < 0x10000u) return;
+            auto *pMin = reinterpret_cast<s32 *>(d + 0x20);
+            auto *pMax = reinterpret_cast<s32 *>(d + 0x28);
+            if (*pMin != 0 || *pMax != 20000) return;
+            const s32 target = 0x7FFFFFFF;  // -> 31 bits, the full signed range
+            *pMax    = target;
+            ctx->X[0] = static_cast<uint64_t>(static_cast<uint32_t>(target - *pMin));
+            if (s_n < 8) { ++s_n;
+                PRINT("[d3hack-custom] ctor widen: desc=%p max 20000 -> %d (width derived)",
+                      reinterpret_cast<void *>(d), target) }
+        }
+    };
+
     HOOK_DEFINE_INLINE(Print_ErrorDisplay) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             // DisplayInternalError(LPCSTR pszMessage, LPCSTR szFile, int32 nLine, ErrorCode eErrorCode)
@@ -1193,6 +1364,26 @@ namespace d3 {
         }
     };
 
+    // d3hack-custom: the paragon field widening, installed on its own.
+    //
+    // This used to sit inside SetupDebuggingHooks, under `debug.enable_error_traces`, inside a
+    // registry entry that is itself skipped unless `debug.active || challenge_rifts.active`.
+    // So a CORRECTNESS patch depended on two logging switches: turning debug logging off put
+    // the paragon field back to its stock 15 bits while MaxParagonLevel still promised
+    // millions, and the level would truncate on the wire the moment it passed 32767 -- with no
+    // symptom until a character was already deep past it.
+    //
+    // It is not a diagnostic, so it no longer ships with the diagnostics. It is registered
+    // separately and gated on the only thing it actually depends on: the cap being raised.
+    inline void SetupParagonFieldWidening() {
+        if (global_config.rare_cheats.max_paragon_level <= 20000)
+            return;
+        for (uintptr_t off : {0x6B160Cu, 0x6B179Cu, 0x6B1938u, 0x6B1B4Cu})
+            Ctor_WidenParagonField::InstallAtOffset(static_cast<ptrdiff_t>(off));
+        PRINT("[d3hack-custom] paragon field widened at construction (%d ctor sites): declared "
+              "max 0x7FFFFFFF, width derived as 31 bits", 4)
+    }
+
     inline void SetupDebuggingHooks() {
         if (global_config.challenge_rifts.active) {
             cr_debug::SetRewardSaveGateBypass(true);
@@ -1224,6 +1415,26 @@ namespace d3 {
         if (global_config.debug.active && global_config.debug.enable_error_traces) {
             Print_ErrorDisplay::
                 InstallAtSymbol("sym_print_error_display");
+            // d3hack-custom: descriptor dump for out-of-range serialized fields.
+            //
+            // Only the ASSERT probe is installed. Diag_BitfieldRange (0xA40AE0) and
+            // Diag_BitfieldRange2 (0x67B390) were described here as "pure diagnostics" and are
+            // not: they WRITE the serializer descriptor, `*(s32*)(pDsc+0x28)` and
+            // `*(s16*)(pDsc+0x4C)`. Their own code records what that costs -- widening a
+            // descriptor late desyncs it from the ones already built, which overflowed the send
+            // buffer and dropped the session to the main menu on the next kill.
+            //
+            // Ctor_WidenParagonField supersedes both by inflating the declared range at
+            // construction instead, so nothing is lost by leaving these two out.
+            //
+            // They also sat behind `debug.active && enable_error_traces && max_paragon > 20000`
+            // -- and all three are TRUE by code default, so a config.toml that failed to parse
+            // armed a known session-dropping write. That is the exact failure this project has
+            // already paid for once.
+            if (global_config.rare_cheats.max_paragon_level > 20000) {
+                Diag_BitfieldAssertB::InstallAtOffset(0x67B3C0);
+                PRINT("[d3hack-diag] layoutB assert diagnostic installed @0x%X", 0x67B3C0)
+            }
             // Print_Error::
             //     InstallAtSymbol("sym_print_error");
             // Print_ErrorString::

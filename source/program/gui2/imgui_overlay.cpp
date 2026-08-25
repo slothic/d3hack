@@ -27,6 +27,8 @@
 #include "program/gui2/memory/imgui_alloc.hpp"
 #include "program/gui2/ui/overlay.hpp"
 #include "program/gui2/ui/windows/notifications_window.hpp"
+#include "program/gui2/ui/windows/combat_log_window.hpp"  // d3hack-custom
+#include "program/gui2/ui/windows/map_info_window.hpp"    // d3hack-custom
 #include "program/gui2/input_util.hpp"
 #include "program/d3/_util.hpp"
 #include "program/d3/setting.hpp"
@@ -1086,6 +1088,34 @@ namespace d3::imgui_overlay {
         va_end(ap);
 
         notifications->AddNotification(color, ttl_s, "%s", buf.data());
+    }
+
+    // d3hack-custom: floats rather than an ImVec4 so game-side hooks can call this
+    // without pulling in imgui headers.
+    void PostCombatLog(float r, float g, float b, const char *fmt, ...) {
+        auto *log = g_overlay.combat_log_window();
+        if (log == nullptr) {
+            return;
+        }
+
+        std::array<char, 512> buf {};
+        va_list               ap;
+        va_start(ap, fmt);
+        vsnprintf(buf.data(), buf.size(), fmt, ap);
+        va_end(ap);
+
+        log->AddLine(ImVec4(r, g, b, 1.0f), buf.data());
+    }
+
+    // d3hack-custom: the map panel is STATE, not an event, so it gets a setter rather than a
+    // post. Calling it again just replaces what is shown; there is no queue to fill.
+    void SetMapInfo(const char *current_map, const char *next_map, int gr_level) {
+        auto *w = g_overlay.map_info_window();
+        if (w == nullptr) {
+            return;
+        }
+        w->SetMap(current_map != nullptr ? current_map : "",
+                  next_map != nullptr ? next_map : "", gr_level);
     }
 
     void Initialize() {

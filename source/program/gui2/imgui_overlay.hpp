@@ -13,4 +13,10 @@ namespace d3::imgui_overlay {
 
     auto GetTitleFont() -> ImFont *;
     auto GetBodyFont() -> ImFont *;
+    // d3hack-custom: post one line to the combat log. Safe to call from game hooks;
+    // it is a no-op until the overlay has built its windows.
+    void PostCombatLog(float r, float g, float b, const char *fmt, ...);
+    // d3hack-custom: set the persistent map panel under the minimap. Empty current hides it.
+    void SetMapInfo(const char *current_map, const char *next_map, int gr_level);
+
 }  // namespace d3::imgui_overlay

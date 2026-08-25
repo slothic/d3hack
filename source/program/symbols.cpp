@@ -160,13 +160,21 @@ SETUP_FUNC_PTR(SCrafterIncrementLevel);                 // BOOL SCrafterIncremen
 SETUP_FUNC_PTR(SItemCrafting_LearnRecipe);              // void SItemCrafting_LearnRecipe(const ACDID idACDPlayer, const GBID gbidRecipe)
 SETUP_FUNC_PTR(sCrafterOnLevelUp);                      // void sCrafterOnLevelUp(const Player *tPlayer, CrafterType eType, const BOOL fChangedRank, const BOOL fSendToClient)
 SETUP_FUNC_PTR(LootRollForAncientLegendary);            // void LootRollForAncientLegendary(LootSpecifier *tSpecifier, const ACDID idACDLooter)
-SETUP_FUNC_PTR(GlobalSNOGet);                           // SNO GlobalSNOGet(const GlobalSNO eGlobalSNO)
+SETUP_FUNC_PTR(LootItemIsLegendary);                    // d3hack-custom: BOOL (GBID) -- item record flag bit 0
+SETUP_FUNC_PTR(GlobalSNOGet);
+SETUP_FUNC_PTR(CameraSetZoomValue);        // d3hack-custom: void (int, float zoom [-1..1], float blend)
+SETUP_FUNC_PTR(CameraApplyObserverByName); // d3hack-custom: void (int nView, const char *szObserver, int nFlags)
+SETUP_FUNC_PTR(SNOIsLoaded);               // d3hack-custom: BOOL (int nGroup, int nSno) -- NOT a pointer
+SETUP_FUNC_PTR(GBAssetGet);
+SETUP_FUNC_PTR(GBRecordGet);
+SETUP_FUNC_PTR(GBRecordRelease);                           // SNO GlobalSNOGet(const GlobalSNO eGlobalSNO)
 SETUP_FUNC_PTR(GBEnumerate);                            // void GBEnumerate(GameBalanceType eType, GBHandleList *listResults)
 SETUP_FUNC_PTR(GBGetHandlePool);
 // SETUP_FUNC_PTR(ItemGetAttributeFromInventorySlot);
 SETUP_FUNC_PTR(SNOToString);
 SETUP_FUNC_PTR(ExperienceSetLevel);
 SETUP_FUNC_PTR(ExperienceDropLootForAll);
+SETUP_FUNC_PTR(GameRuleFlagTest);                // d3hack-custom
 SETUP_FUNC_PTR(LootQuickCreateItem);
 SETUP_FUNC_PTR(SACDInventoryPickupOrSpillOntoGround);
 SETUP_FUNC_PTR(FlippyFindLandingLocation);
@@ -205,5 +213,6 @@ SETUP_FUNC_PTR(GetPrimaryPlayer);
 SETUP_FUNC_PTR(PlayerIsPrimary);
 SETUP_FUNC_PTR(PlayerGetFirstInGame);    // Player *__cdecl PlayerGetFirstInGame()
 SETUP_FUNC_PTR(PlayerGetByPlayerIndex);  // PlayerGetByPlayerIndex
+SETUP_FUNC_PTR(TieredLootRunGetLevel);   // d3hack-custom: int32 sTieredLootRunGetLevel()
 
 /* clang-format on */

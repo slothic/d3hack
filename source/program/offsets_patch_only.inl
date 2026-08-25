@@ -184,7 +184,85 @@
     {util::ModuleIndex::Main, 0x00C72F80, "patch_cheat_gem_lvl150_02_movz"},                // MOVZ | W0 | 0x96
     {util::ModuleIndex::Main, 0x00C72F84, "patch_cheat_gem_lvl150_03_bytes"},               // patch: 17 00 16 4B
     {util::ModuleIndex::Main, 0x00C72F88, "patch_cheat_gem_lvl150_04_ret"},                 // RET
-    {util::ModuleIndex::Main, 0x007DF958, "patch_cheat_gem_lvl150_05_bytes"},               // patch: 89 4D 12 94
+    {util::ModuleIndex::Main, 0x007DF958, "patch_cheat_gem_lvl150_05_bytes"},
+    {util::ModuleIndex::Main, 0x006A251C, "patch_gem_chance_rank_gate_nop"},              // d3hack-custom: NOP `b.gt` after `cmp w0,#0x95` (rank>149 => 0% chance)
+    {util::ModuleIndex::Main, 0x00C72AA0, "patch_xpidx_cave_0"},                          // d3hack-custom: clamp stub word 0
+    {util::ModuleIndex::Main, 0x00C72AA4, "patch_xpidx_cave_1"},                          // d3hack-custom: clamp stub word 1
+    {util::ModuleIndex::Main, 0x00C72AA8, "patch_xpidx_cave_2"},                          // d3hack-custom: clamp stub word 2
+    {util::ModuleIndex::Main, 0x00C72AAC, "patch_xpidx_cave_3"},                          // d3hack-custom: clamp stub word 3
+    {util::ModuleIndex::Main, 0x00C72AB0, "patch_xpidx_cave_4"},                          // d3hack-custom: clamp stub word 4
+    {util::ModuleIndex::Main, 0x00EC99C4, "patch_gemchance_03"},                        // d3hack-custom: table_A[3] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99C8, "patch_gemchance_04"},                        // d3hack-custom: table_A[4] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99CC, "patch_gemchance_05"},                        // d3hack-custom: table_A[5] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99D0, "patch_gemchance_06"},                        // d3hack-custom: table_A[6] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99D4, "patch_gemchance_07"},                        // d3hack-custom: table_A[7] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99D8, "patch_gemchance_08"},                        // d3hack-custom: table_A[8] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99DC, "patch_gemchance_09"},                        // d3hack-custom: table_A[9] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99E0, "patch_gemchance_10"},                        // d3hack-custom: table_A[10] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99E4, "patch_gemchance_11"},                        // d3hack-custom: table_A[11] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99E8, "patch_gemchance_12"},                        // d3hack-custom: table_A[12] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99EC, "patch_gemchance_13"},                        // d3hack-custom: table_A[13] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99F0, "patch_gemchance_14"},                        // d3hack-custom: table_A[14] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99F4, "patch_gemchance_15"},                        // d3hack-custom: table_A[15] -> 10%
+    {util::ModuleIndex::Main, 0x00EC99F8, "patch_gemchance_16"},                        // d3hack-custom: table_A[16] -> 10%
+    {util::ModuleIndex::Main, 0x00C72AC0, "patch_gemsel_stub_0"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72AC4, "patch_gemsel_stub_1"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72AC8, "patch_gemsel_stub_2"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72ACC, "patch_gemsel_stub_3"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72AD0, "patch_gemsel_stub_4"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72AD4, "patch_gemsel_stub_5"},                       // d3hack-custom: GR>150 chance-table selector
+    {util::ModuleIndex::Main, 0x00C72AD8, "patch_gemsel_tbl_00"},                      // d3hack-custom: floored chance table [0]
+    {util::ModuleIndex::Main, 0x00C72ADC, "patch_gemsel_tbl_01"},                      // d3hack-custom: floored chance table [1]
+    {util::ModuleIndex::Main, 0x00C72AE0, "patch_gemsel_tbl_02"},                      // d3hack-custom: floored chance table [2]
+    {util::ModuleIndex::Main, 0x00C72AE4, "patch_gemsel_tbl_03"},                      // d3hack-custom: floored chance table [3]
+    {util::ModuleIndex::Main, 0x00C72AE8, "patch_gemsel_tbl_04"},                      // d3hack-custom: floored chance table [4]
+    {util::ModuleIndex::Main, 0x00C72AEC, "patch_gemsel_tbl_05"},                      // d3hack-custom: floored chance table [5]
+    {util::ModuleIndex::Main, 0x00C72AF0, "patch_gemsel_tbl_06"},                      // d3hack-custom: floored chance table [6]
+    {util::ModuleIndex::Main, 0x00C72AF4, "patch_gemsel_tbl_07"},                      // d3hack-custom: floored chance table [7]
+    {util::ModuleIndex::Main, 0x00C72AF8, "patch_gemsel_tbl_08"},                      // d3hack-custom: floored chance table [8]
+    {util::ModuleIndex::Main, 0x00C72AFC, "patch_gemsel_tbl_09"},                      // d3hack-custom: floored chance table [9]
+    {util::ModuleIndex::Main, 0x00C72B00, "patch_gemsel_tbl_10"},                      // d3hack-custom: floored chance table [10]
+    {util::ModuleIndex::Main, 0x00C72B04, "patch_gemsel_tbl_11"},                      // d3hack-custom: floored chance table [11]
+    {util::ModuleIndex::Main, 0x00C72B08, "patch_gemsel_tbl_12"},                      // d3hack-custom: floored chance table [12]
+    {util::ModuleIndex::Main, 0x00C72B0C, "patch_gemsel_tbl_13"},                      // d3hack-custom: floored chance table [13]
+    {util::ModuleIndex::Main, 0x00C72B10, "patch_gemsel_tbl_14"},                      // d3hack-custom: floored chance table [14]
+    {util::ModuleIndex::Main, 0x00C72B14, "patch_gemsel_tbl_15"},                      // d3hack-custom: floored chance table [15]
+    {util::ModuleIndex::Main, 0x00C72B18, "patch_gemsel_tbl_16"},                      // d3hack-custom: floored chance table [16]
+    {util::ModuleIndex::Main, 0x006A252C, "patch_gemsel_call"},                          // d3hack-custom: add x9,x9,#0x9b8 -> BL selector
+    /* d3hack-custom: seasonal-item gates (see PatchSeasonalItemGates) */
+    {util::ModuleIndex::Main, 0x00492F2C, "patch_seasonitem_droplist_nop"},        // cbnz w0, reject -- seasonal-only item in a non-seasonal game
+    {util::ModuleIndex::Main, 0x00897894, "patch_seasonitem_hero_season_nop"},     // cbz w0, deny  -- seasonal-only item in a non-seasonal game
+    {util::ModuleIndex::Main, 0x008978B4, "patch_seasonitem_ethereal_nop"},        // cbz w0, deny  -- ETHEREALITEMSUNLOCKED
+    {util::ModuleIndex::Main, 0x008978D0, "patch_seasonitem_soulshard_nop"},       // cbz w0, deny  -- SOULSHARDSUNLOCKED
+    {util::ModuleIndex::Main, 0x008978EC, "patch_seasonitem_sanctified_nop"},      // cbz w0, deny  -- SANCTIFIEDITEMSUNLOCKED
+    {util::ModuleIndex::Main, 0x004C4118, "patch_xpidx_call"},                              // d3hack-custom: sxtw x9,w20 -> BL clamp stub
+    {util::ModuleIndex::Main, 0x0052725C, "patch_paragon_limit_scale"},                         // d3hack-custom: 0x5271F0 return, mov w0,w19 -> add w0,w19,w19,lsl #k
+    {util::ModuleIndex::Main, 0x007F675C, "patch_paragon_statcap_spend"},                     // d3hack-custom: NOP b.gt (current+amount > limit -> reject)
+    {util::ModuleIndex::Main, 0x007F6888, "patch_paragon_statcap_validate"},                  // d3hack-custom: b.le -> unconditional b (skip the over-limit fixup)
+    {util::ModuleIndex::Main, 0x007F7230, "patch_paragon_noreset_01"},                       // d3hack-custom: RETIRED -- gutted 0x7F71E0 itself, which also killed in-game respec
+    {util::ModuleIndex::Main, 0x007F72B0, "patch_paragon_noreset_02"},                       // d3hack-custom: RETIRED -- and skipped the pool free, leaking the list every call
+    {util::ModuleIndex::Main, 0x007F6894, "patch_paragon_noreset_validate_01"},              // d3hack-custom: NOP the `bl 0x7F71E0` in the per-bonus over-limit fixup (spend > limit -> wipe whole category)
+    {util::ModuleIndex::Main, 0x007F6954, "patch_paragon_noreset_validate_02"},              // d3hack-custom: NOP the `bl 0x7F71E0` in the per-category over-budget fixup (spent > pool -> wipe whole category)
+    {util::ModuleIndex::Main, 0x00A40AE8, "patch_bitfield_range_assert_nop"},               // d3hack-custom: NOP `b.gt` on the serializer max-range assert (line 917)
+    {util::ModuleIndex::Main, 0x0079FE8C, "patch_paragon_cap_05"},                          // d3hack-custom: MOVZ W27,#20000 -- the XP-grant level gate (0x79FED0 cmp/b.ge)
+    {util::ModuleIndex::Main, 0x0047B970, "patch_paragon_cap_06"},                          // d3hack-custom: MOVZ W0,#20000 -- paragon level-cap getter
+    {util::ModuleIndex::Main, 0x0021309C, "patch_paragon_cap_01"},                          // d3hack-custom: MOVZ W8,#20000 before the XP-table read
+    {util::ModuleIndex::Main, 0x0030B2A8, "patch_paragon_cap_02"},                          // d3hack-custom: MOVZ W8,#20000
+    {util::ModuleIndex::Main, 0x00416D54, "patch_paragon_cap_03"},                          // d3hack-custom: MOVZ W8,#20000
+    {util::ModuleIndex::Main, 0x007A1EAC, "patch_paragon_cap_04"},                          // d3hack-custom: MOVZ W9,#20000 (level-up clamp)
+    {util::ModuleIndex::Main, 0x0079FE70, "patch_xp_multiplier"},                            // d3hack-custom: stock `mov x20,x1` -> `add x20,xzr,x1,lsl #n`
+    {util::ModuleIndex::Main, 0x114B758, "gb_asset_mgr_ptr"},                                // d3hack-custom: GameBalance asset manager (see 0x51ADA0)
+    {util::ModuleIndex::Main, 0x00500D98, "patch_gem_rank_persist_clamp"},                 // d3hack-custom: csel w23 (max rank for the load/sync clamp) -> MOV W23, #0xFFFF
+    {util::ModuleIndex::Main, 0x0088718C, "patch_gem_upgrades_used_gate_nop"},            // d3hack-custom: NOP `b.ge` on JEWEL_UPGRADES_USED >= JEWEL_UPGRADES_MAX
+    {util::ModuleIndex::Main, 0x001F16C8, "patch_gem_canupgrade_maxrank"},                // d3hack-custom: `cmp w0,w20; cset lt` (is gem upgradeable)
+    {util::ModuleIndex::Main, 0x00243B20, "patch_gem_ismaxed_maxrank"},                   // d3hack-custom: `tbz w20,#31` (is gem at max rank)
+    {util::ModuleIndex::Main, 0x005018E0, "patch_rama_listfilter_skip"},                   // d3hack-custom: THE target-list filter -- skip its six category-flag tests, B to the success path
+    {util::ModuleIndex::Main, 0x004F6C00, "patch_rama_socketable_skip"},                   // d3hack-custom: skip the six category-flag tests in ItemIsSocketable, B to the identified check
+    {util::ModuleIndex::Main, 0x004F6C90, "patch_rama_target_gate_movn"},                  // d3hack-custom: CanAddSocketsToItem(target, consumable) -> MOVN W0,#0 (-1 == valid)
+    {util::ModuleIndex::Main, 0x004F6C94, "patch_rama_target_gate_ret"},                   // d3hack-custom: ...and RET, so every target is accepted
+    {util::ModuleIndex::Main, 0x005011CC, "patch_cube_augment_rank_site0"},                // d3hack-custom: augment gem-rank clamp, word 0 (`cmp w8,#150` -> `movz w9,#cap`)
+    {util::ModuleIndex::Main, 0x005011D0, "patch_cube_augment_rank_site1"},                // d3hack-custom: augment gem-rank clamp, word 1 (`mov w9,#150` -> `cmp w8,w9`)
+    {util::ModuleIndex::Main, 0x007DF944, "patch_gem_uncap_maxrank_movn"},                 // d3hack-custom: MOV W20, #-1 (negative max rank = no cap)               // patch: 89 4D 12 94
 
     {util::ModuleIndex::Main, 0x004FB9E4, "patch_cheat_multi_legendary_01_branch"},         // unused | BRANCH | 0x5C
 

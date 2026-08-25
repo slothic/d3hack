@@ -1,7 +1,10 @@
 #include "program/build_stamp.hpp"
 
 #include "program/build_git.hpp"
-#include "program/d3/setting.hpp"
+// d3hack-custom: branding.hpp, NOT setting.hpp. This TU is 20 lines of string constants,
+// but setting.hpp pulls symbols/common.hpp + logging.hpp + <cstdio> and cost 9.9 s to
+// compile -- serially, ahead of the link, on every build.
+#include "program/d3/branding.hpp"
 
 namespace d3::build_stamp {
 #if D3HACK_GIT_DIRTY

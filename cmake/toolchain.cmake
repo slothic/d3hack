@@ -121,12 +121,18 @@ add_definitions(-DSWITCH -D__SWITCH__ -D__RTLD_6XX__)
 
 set(ARCH "-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=el0 -fPIC -fvisibility=hidden")
 
-set(_d3hack_c_flags "-g -Wall -Werror -O3 -ffast-math -ffunction-sections -fdata-sections -Wno-format-zero-length ${ARCH} --sysroot=${CMAKE_SYSROOT} ${DEVKITA64_STDLIB_INCLUDE_FLAGS}")
+# d3hack-custom: -g1, not -g. Full DWARF made the linked ELF 28.5 MB against only 2.4 MB
+# of text+data -- 26 MB of debug info -- and every build relinks it (the build stamp
+# regenerates each time, by design, so the "did my build actually deploy" check keeps
+# working). That link plus the nso compression was the whole 44 s no-op build.
+# -g1 keeps line tables and changes NO generated code: debug level never affects
+# codegen. The deployed work.nso carries no debug info either way.
+set(_d3hack_c_flags "-g1 -Wall -Werror -O3 -ffast-math -ffunction-sections -fdata-sections -Wno-format-zero-length ${ARCH} --sysroot=${CMAKE_SYSROOT} ${DEVKITA64_STDLIB_INCLUDE_FLAGS}")
 set(_d3hack_cxx_flags "${_d3hack_c_flags} -fno-rtti -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-threadsafe-statics")
 
 set(CMAKE_C_FLAGS "${_d3hack_c_flags}" CACHE STRING "C flags" FORCE)
 set(CMAKE_CXX_FLAGS "${_d3hack_cxx_flags}" CACHE STRING "C++ flags" FORCE)
-set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -x assembler-with-cpp -g ${ARCH}" CACHE STRING "ASM flags")
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -x assembler-with-cpp -g1 ${ARCH}" CACHE STRING "ASM flags")
 # These flags are purposefully empty to use the default flags when invoking the
 # devkitA64 linker. Otherwise the linker may complain about duplicate flags.
 set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "Executable linker flags")

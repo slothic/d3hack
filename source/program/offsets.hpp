@@ -232,6 +232,7 @@ namespace exl::reloc {
             { util::ModuleIndex::Main, 0x6A4A20, "sym_Crafting_GetTransmogSlot" },
             { util::ModuleIndex::Main, 0x7A1D80, "sym_ExperienceSetLevel" },
             { util::ModuleIndex::Main, 0x7A1B00, "sym_ExperienceDropLootForAll" },
+            { util::ModuleIndex::Main, 0x4C8C20, "sym_GameRuleFlagTest" },
             { util::ModuleIndex::Main, 0x7C2C50, "sym_SCosmeticItems_LearnCosmeticItem" },
             { util::ModuleIndex::Main, 0x7C2F50, "sym_SCosmeticItems_LearnPet" },
             { util::ModuleIndex::Main, 0x7E02B0, "sym_SItemPlayerExtractLegendaryPower" },
@@ -242,11 +243,39 @@ namespace exl::reloc {
             { util::ModuleIndex::Main, 0x886D70, "sym_sCrafterOnLevelUp" },
             { util::ModuleIndex::Main, 0x88DDE0, "sym_LootRollForAncientLegendary" },
             { util::ModuleIndex::Main, 0x4E5E50, "sym_GlobalSNOGet" },
+            // d3hack-custom: camera zoom. Reached from the CameraSetZoom Lua binding
+            // (0x8C3710), which ends `fmov s1,#1.0 / mov w0,wzr / bl 0x93BE80`.
+            { util::ModuleIndex::Main, 0x93BE80, "sym_CameraSetZoomValue" },
+            // d3hack-custom: apply an Observer (camera) to a view, BY NAME. Reached from
+            // the SetCameraObserver Lua binding (0x8C3BE0). Opens with mov w22,#0x1A --
+            // SNO group 0x1A is Observer -- resolves the name, then applies it. Unlike
+            // CameraSetZoom this does not queue a message, so it is the native path.
+            { util::ModuleIndex::Main, 0x93C010, "sym_CameraApplyObserverByName" },
+            // d3hack-custom: SNO -> loaded asset pointer. Indexes a manager array by SNO
+            // ([mgr+0x11E0][sno], bounded by [mgr+0x11E8]) with a hash fallback for SNOs
+            // past the array. This is the accessor the camera code itself uses.
+            // d3hack-custom: NOT an asset getter -- it computes the pointer then does
+            // `cmp x8,#0 / cset w8,ne`, i.e. it returns a BOOL. It handed back 0x1 and
+            // dereferencing that crashed the game. Kept documented so nobody re-reads the
+            // ldr in its middle and concludes "returns pointer" again.
+            { util::ModuleIndex::Main, 0x7498B0, "sym_SNOIsLoaded" },
+            // The SNO asset manager pointer, from the adrp/ldr that both 0x7498B0 and
+            // 0x749990 open with: adrp x10,#0x1A21000 / ldr x10,[x10,#0x6F0].
+            { util::ModuleIndex::Main, 0x1A216F0, "sno_asset_mgr_ptr" },
             { util::ModuleIndex::Main, 0x6CB780, "sym_GBEnumerate" },
+            { util::ModuleIndex::Main, 0x6C4940, "sym_GBAssetGet" },
+            { util::ModuleIndex::Main, 0x6CA760, "sym_GBRecordGet" },
+            { util::ModuleIndex::Main, 0x6CA8E0, "sym_GBRecordRelease" },
             { util::ModuleIndex::Main, 0x6CBCA0, "sym_GBGetHandlePool" },
             { util::ModuleIndex::Main, 0x74A510, "sym_SNOToString" },
             { util::ModuleIndex::Main, 0x933ED0, "sym_PlayerIsPrimary" },
             { util::ModuleIndex::Main, 0x93DAF0, "sym_GetPrimaryPlayer" },
+            // d3hack-custom: SGame -> [+0x58] -> [+0x738] -> [+0x14]. The greater-rift
+            // tier as a game global -- no ACD, so it works when the looter is null.
+            { util::ModuleIndex::Main, 0x777B00, "sym_TieredLootRunGetLevel" },
+            // d3hack-custom: the legendary gate LootRollForAncientLegendary itself uses
+            // at 0x88DE40 before doing any ancient work.
+            { util::ModuleIndex::Main, 0x4F47E0, "sym_LootItemIsLegendary" },
             { util::ModuleIndex::Main, 0x0B8740, "sym_LocalPlayerGet" },
             { util::ModuleIndex::Main, 0x51FC40, "sym_PlayerGetByACD" },
             { util::ModuleIndex::Main, 0x51CFF0, "sym_PlayerGetHeroDisplayName" },

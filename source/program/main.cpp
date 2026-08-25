@@ -48,6 +48,7 @@ namespace d3 {
         [[gnu::used]] static void (*const k_emit_setup_utility)()       = &SetupUtilityHooks;
         [[gnu::used]] static void (*const k_emit_setup_resolution)()    = &SetupResolutionHooks;
         [[gnu::used]] static void (*const k_emit_setup_debugging)()     = &SetupDebuggingHooks;
+        [[gnu::used]] static void (*const k_emit_setup_paragon_field)() = &SetupParagonFieldWidening;
         [[gnu::used]] static void (*const k_emit_setup_season_events)() = &SetupSeasonEventHooks;
         [[gnu::used]] static void (*const k_emit_setup_lobby)()         = &SetupLobbyHooks;
 
@@ -131,6 +132,15 @@ namespace d3 {
     HOOK_DEFINE_TRAMPOLINE(GameCommonDataInit) {
         static void Callback(GameCommonData *_this, const GameParams *tParams) {
             UpdateDynamicSeasonalForSpawn(tParams);
+            ExtendTieredRiftTable();  // d3hack-custom
+            // d3hack-custom: do NOT call anything using AllGBIDsOfType here. The GB handle
+            // pool is not usable this early -- GBGetHandlePool() returns non-null but the
+            // pool behind it is not built, so the call faults instantly. Cost a crash on
+            // 2026-08-21 after the same warning was already written in HANDOFF.md.
+            // d3hack-custom: ExtendParagonXpTable() removed. The codecave clamp at
+            // 0x4C4118 bounds the XP-table index to 19999, so growing the table is
+            // redundant -- and at a multi-billion cap the allocation (256 GB) hangs the
+            // allocator instead of failing, which showed up as an endless load screen.
             Orig(_this, tParams);
             g_ptGCData                      = _this;
             const bool has_game_is_seasonal = (GameIsSeasonal != nullptr);
@@ -211,8 +221,20 @@ namespace d3 {
         }
     };
     HOOK_DEFINE_TRAMPOLINE(sInitializeWorld){
+        // d3hack-custom: paragon limits need the GB handle pool, ready only by now.
         static void Callback(SNO snoWorld, uintptr_t *ptSWorld) {
+            // d3hack-custom: BEFORE Orig on purpose. The roll that picked this world -- the
+            // GR tileset, or a Vision floor's monster type -- already happened; Orig is where
+            // the world gets BUILT, and its own rolls would flood the ring and evict the one
+            // being hunted.
+            d3::WorldGenReport(static_cast<s32>(snoWorld), ptSWorld);
+            // d3hack-custom: bracket generation itself. The tileset is chosen in HERE -- it is
+            // not in SWorld, not in the world-entry record, not in the executable and not in
+            // GameBalance, all four checked. Diffing per-generator call counts across Orig
+            // says which LCG state does the layout, and its callers are the worldgen code.
+            d3::RngGenSnapshot();
             Orig(snoWorld, ptSWorld);
+            d3::RngGenReport(static_cast<s32>(snoWorld));
             auto *ptSGameGlobals         = SGameGlobalsGet();
             auto  sGameCurID             = AppServerGetOnlyGame();
             g_idGameConnection           = ServerGetOnlyGameConnection();
@@ -224,6 +246,33 @@ namespace d3 {
                 ptPrimaryForConnection,
                 g_idGameConnection
             );
+            // d3hack-custom: RaiseParagonStatLimits() removed -- 0x6CA760 returns a
+            // refcounted temporary, so writing to it had no effect on the live limit.
+            // The limit is now handled by instruction patches in PortCheatCodes().
+            d3::ReportAndResetLootTally();  // d3hack-custom: per-rift primal budget + roll tally
+            d3::ExpireGRLatchOnWorldChange();  // d3hack-custom
+            d3::pools::Flush();                // d3hack-custom: persist the pool carry
+            if (global_config.rare_cheats.altar_dump_tables)
+                d3::DumpAltarTables();         // d3hack-custom
+            d3::PatchAltarChallengeRiftCost();  // d3hack-custom
+            d3::ConvertAltarItemNodes();        // d3hack-custom
+            d3::PatchItemTypeMaxSockets();        // d3hack-custom
+            d3::PatchSocketAffixItemGroups();  // d3hack-custom
+            d3::PatchRamaladniTargetTypes();   // d3hack-custom
+            d3::ShiftSetBonusTiers();          // d3hack-custom
+            d3::InspectSetBonuses();           // d3hack-custom
+            d3::NameSnoList();                 // d3hack-custom
+            d3::MapFloatsLoadIfNeeded();       // d3hack-custom: file I/O on THIS thread only
+            d3::MapFloatsFlush();              // d3hack-custom: never from world-gen
+            d3::DumpMonsterAffixes();          // d3hack-custom
+            d3::DisableMonsterAffixes();       // d3hack-custom
+            d3::DumpRiftTables();              // d3hack-custom
+            d3::DumpTieredRiftLevels();        // d3hack-custom
+            d3::ReportPowerSnos();             // d3hack-custom
+            d3::PatchItemSocketCategoryFlags();  // d3hack-custom
+            d3::DumpPredicateRegistry();         // d3hack-custom
+            d3::ProbeShowItemsOnGround();        // d3hack-custom
+            d3::ReportRiftLevel();             // d3hack-custom
             if (global_config.rare_cheats.active && global_config.rare_cheats.super_god_mode)
                 EnableGod();
             // GfxWindowChangeDisplayModeHook::Callback(&g_ptGfxData->tCurrentMode);
@@ -285,6 +334,7 @@ namespace d3 {
             if (global_config.events.active) {
                 d3::boot_report::RecordPatch("DynamicEvents");
                 PatchDynamicEvents();
+                PatchSeasonalItemGates();  // d3hack-custom
             }
             if (global_config.seasons.active) {
                 d3::boot_report::RecordPatch("DynamicSeasonal");

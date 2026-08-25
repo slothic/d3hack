@@ -59,6 +59,13 @@ std::array<std::byte, sizeof...(Ts)> make_bytes(Ts &&...args) noexcept {
     return {std::byte(std::forward<Ts>(args))...};
 }
 
+// d3hack-custom: little-endian byte array for a whole 32-bit instruction/word, so
+// patch sites can be built from computed values instead of hand-split literals.
+inline std::array<std::byte, 4> make_dword(uint32_t word) noexcept {
+    return make_bytes(static_cast<uint8_t>(word & 0xFFu), static_cast<uint8_t>((word >> 8) & 0xFFu),
+                      static_cast<uint8_t>((word >> 16) & 0xFFu), static_cast<uint8_t>((word >> 24) & 0xFFu));
+}
+
 constexpr int div_ceil(int numerator, int denominator) {
     return (numerator / denominator) + static_cast<int>((numerator % denominator) != 0);
 }

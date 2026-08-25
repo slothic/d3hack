@@ -8,8 +8,8 @@
   "configurePresets": [
     {
       "name": "switch",
-      "displayName": "Switch (devkitA64)",
-      "generator": "Unix Makefiles",
+      "displayName": "Switch (devkitA64, Ninja)",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "toolchainFile": "${sourceDir}/cmake/toolchain.cmake",
       "cacheVariables": {
@@ -28,6 +28,17 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "EXL_ENABLE_IWYU": "ON"
       }
+    },
+    {
+      "name": "switch-make",
+      "displayName": "Switch (devkitA64, Unix Makefiles fallback)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "toolchainFile": "${sourceDir}/cmake/toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -38,6 +49,10 @@
     {
       "name": "switch-iwyu",
       "configurePreset": "switch-iwyu"
+    },
+    {
+      "name": "switch-make",
+      "configurePreset": "switch-make"
     }
   ]
 }

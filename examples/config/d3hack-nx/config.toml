@@ -151,6 +151,33 @@ LegendaryGemLevel150 = false
 # Equip multiple legendary items that would normally be restricted.
 EquipMultipleLegendaries = true
 
+# --- v3.6 / v3.7 ---
+# Pull the camera back. This is a distance along the view direction, not a
+# multiplier, so it stays sane at every angle. 0 = stock. 35 is roughly twice
+# the stock view; past about 80 the world starts running out before the screen
+# does. CameraZoom below is the older knob and is superseded -- leave it at 0.
+ViewDolly = 35.0
+# Let shadows follow the pulled-back camera. Off because it costs frames and
+# changes nothing you can see at normal dolly values.
+ViewDollyShadows = false
+# On-screen combat log: what you pulled and what died, with monster names,
+# rarity colours and elite affixes.
+CombatLog = true
+# Scale the rested-experience grant as well as the normal one. Without this the
+# multiplier applies to only part of a kill's XP, which is why the effective
+# rate used to wander between 1x and the number you set.
+XpScaleRested = true
+# Altar of Rites seal costs. 1 = swap the Infernal Machine organ requirements
+# for blood shards and crafting materials. 0 = stock. 2 also strips other
+# seals' item requirements, which is more than most people want.
+AltarItemCostMode = 1
+# Take as much of a blood shard pile as fits instead of refusing the whole pile,
+# the way the PC version does. The remainder stays on the ground.
+PartialCurrencyPickup = true
+# Monsters stop adding the Scoundrel and the Enchantress to their target lists.
+# The Templar is deliberately left alone -- he is the one meant to hold a pack.
+FollowerNoAggro = true
+
 [overlays]
 # Overlay UI/watermarks.
 SectionEnabled = true
@@ -180,8 +207,20 @@ SuppressGiftGeneration = false
 ForcedILevel = 0
 # Force run level for tiered loot tables.
 TieredLootRunLevel = 0
-# Force ancient rank (Normal | Ancient | Primal).
-AncientRank = "Primal"
+# Minimum ancient rank for every drop (Normal | Ancient | Primal).
+# This is a FLOOR, not a replacement: the game rolls ancient/primal normally first and
+# only gets raised to meet this. "Normal" therefore means "no override" -- to actually
+# suppress ancients use DisableAncientDrops / DisablePrimalAncientDrops above.
+AncientRank = "Normal"
+# Greater Rift tier at which every legendary is floored to Ancient (0 = off).
+# Below this tier -- and in normal Nephalem rifts, which have no tier at all -- drop
+# ranks are left completely alone.
+AncientMinGRLevel = 120
+# Greater Rift tier at which the first few legendaries of each rift are forced Primal
+# (0 = off). Primals the game rolled on its own do not count against the budget.
+PrimalMinGRLevel = 151
+# How many forced primals each rift above PrimalMinGRLevel is allowed.
+PrimalGuaranteedCount = 3
 
 [debug]
 # Debug-only features.

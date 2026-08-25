@@ -22,6 +22,8 @@
 
 #include "program/gui2/ui/windows/config_window.hpp"
 #include "program/gui2/ui/windows/notifications_window.hpp"
+#include "program/gui2/ui/windows/combat_log_window.hpp"  // d3hack-custom
+#include "program/gui2/ui/windows/map_info_window.hpp"    // d3hack-custom
 
 namespace d3::gui2::ui {
     namespace {
@@ -429,6 +431,18 @@ namespace d3::gui2::ui {
         overlay_windows_.clear();
         windows_.clear();
 
+        // d3hack-custom: the combat log is registered like any other overlay window,
+        // so it is drawn by the same loop. It carries NoInputs, so being permanently
+        // open costs the player nothing.
+        auto combat_log    = std::make_unique<windows::CombatLogWindow>();
+        combat_log_window_ = static_cast<windows::CombatLogWindow *>(
+            RegisterWindow(std::move(combat_log), WindowLayer::Overlay)
+        );
+        auto map_info    = std::make_unique<windows::MapInfoWindow>();
+        map_info_window_ = static_cast<windows::MapInfoWindow *>(
+            RegisterWindow(std::move(map_info), WindowLayer::Overlay)
+        );
+
         auto notifications    = std::make_unique<windows::NotificationsWindow>();
         notifications_window_ = static_cast<windows::NotificationsWindow *>(
             RegisterWindow(std::move(notifications), WindowLayer::Overlay)
@@ -676,6 +690,12 @@ namespace d3::gui2::ui {
         bool        consumed_focus     = false;
         static bool s_reset_layout_pop = false;
 
+        if (map_info_window_ != nullptr) {  // d3hack-custom
+            map_info_window_->SetViewportSize(viewport_size);
+        }
+        if (combat_log_window_ != nullptr) {  // d3hack-custom
+            combat_log_window_->SetViewportSize(viewport_size);
+        }
         if (notifications_window_ != nullptr) {
             notifications_window_->SetViewportSize(viewport_size);
         }

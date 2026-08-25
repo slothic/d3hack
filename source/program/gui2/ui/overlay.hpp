@@ -36,6 +36,8 @@ namespace d3::gui2::ui {
 
     namespace windows {
         class NotificationsWindow;
+        class CombatLogWindow;
+        class MapInfoWindow;   // d3hack-custom
     }
 
     class Overlay final {
@@ -118,6 +120,8 @@ namespace d3::gui2::ui {
         void     set_theme(GuiTheme theme);
         void     AfterFrame();
 
+        windows::CombatLogWindow           *combat_log_window() { return combat_log_window_; }
+        windows::MapInfoWindow             *map_info_window() { return map_info_window_; }   // d3hack-custom
         windows::NotificationsWindow       *notifications_window() { return notifications_window_; }
         const windows::NotificationsWindow *notifications_window() const { return notifications_window_; }
 
@@ -158,6 +162,8 @@ namespace d3::gui2::ui {
 
         Window                       *config_window_        = nullptr;
         windows::NotificationsWindow *notifications_window_ = nullptr;
+        windows::CombatLogWindow     *combat_log_window_    = nullptr;  // d3hack-custom
+        windows::MapInfoWindow       *map_info_window_      = nullptr;  // d3hack-custom
     };
 
 }  // namespace d3::gui2::ui
