@@ -1,51 +1,60 @@
-# d3hack -- Greater Rift map tile budgets. Learned from the game, never invented.
+# d3hack -- Greater Rift map tile budgets. AUTHORITATIVE.
 #
-# Every Greater Rift floor carries three numbers beside its tileset. Worldgen feeds the first
-# of them into the loop that decides how many tiles the floor gets, so substituting a map
-# without its own three numbers builds the new tileset to the OLD map's budget -- which is
-# what produced floors you could walk into and not walk out of.
+# Extracted from the game's own data, not learned from play:
+#   romfs Update/CPKs/Patch2_7_6.cpk -> DungeonFinder/X1_DungeonFinderEngine_GreaterRift.dfn
+#   (SNO 452742), record array at blob+56, 72 bytes per entry, floats at +40/+44/+48.
 #
-# RiftMapSubstitute therefore refuses to swap in any map that is not listed here. This file is
-# the starting set so that a fresh install works from the first rift instead of after a dozen.
-# The game adds to it on its own as it rolls maps you have not seen yet; the format is
+# THE GREATER RIFT POOL IS THESE 55 MAPS. rift-maps.txt lists 164 tilesets, but 109 of them
+# are Nephalem-only and live in a different asset (SNO 349183). A map that is not in this
+# file is one the Greater Rift engine will never roll, so putting it in PreferredRiftMaps or
+# AllowedRiftMaps cannot do anything.
 #
-#     <world SNO> <float0 bits> <float1 bits> <float2 bits>
+# Confirmed against 42 values previously learned from live rift plans: 36 matched bit-exactly.
+# The six that did not were Nephalem values that had leaked into the learned cache, including
+# two maps not in the Greater Rift pool at all. Those six are corrected here.
 #
-# stored as raw IEEE bit patterns because 1.07 does not survive a text round trip exactly.
+#     <world SNO> <float0 bits> <float1 bits> <float2 bits>     raw IEEE bits, decimal
+#
 # Comment lines are ignored on read but are NOT preserved when the game rewrites this file.
 #
-# Only Greater Rift plans are recorded. Nephalem rift plans use the same three slots for a
-# different quantity (they read as identical whole numbers, 2/2/2 through 10/10/10), and
-# feeding one of those to a Greater Rift floor is the exact mistake described above.
-#
 453211  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_desert                  1.00/1.00/1.00
+486855  1069547520  1069547520  1065353216   # p43_lr_tileset_interiorgrift_desert_gg               1.50/1.50/1.00
 453213  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_festeringwoodsdrlg      1.00/1.00/1.00
+486856  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_festeringwoodsdrlg_gg   1.00/1.00/1.00
 453214  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_forest_coast            1.00/1.00/1.00
 453210  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_forest_snow             1.00/1.00/1.00
 453212  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_pandext                 1.00/1.00/1.00
+486857  1065353216  1065353216  1065353216   # p43_lr_tileset_interiorgrift_pandext_gg              1.00/1.00/1.00
 444000  1067198710  1065353216  1073741824   # p4_lr_tileset_forest_coast_cave_small                1.22/1.00/2.00
 465376  1065353216  1065353216  1065353216   # p6_lr_tileset_interiorgrift_moors                    1.00/1.00/1.00
+486858  1071644672  1071644672  1065353216   # p6_lr_tileset_interiorgrift_moors_gg                 1.75/1.75/1.00
 462861  1065353216  1065353216  1065353216   # px_lr_tileset_church_small                           1.00/1.00/1.00
-462958  1073741824  1073741824  1065353216   # px_lr_tileset_exterior_moors                         2.00/2.00/1.00
+486859  1063675494  1065353216  1065353216   # px_lr_tileset_exterior_tristramfieldsdrlg_small_gg   0.90/1.00/1.00
 487126  1063675494  1065353216  1065353216   # px_lr_tileset_exterior_tristramfieldsdrlg_small_gr   0.90/1.00/1.00
 331384  1067366482  1065353216  1077936128   # x1_lr_tileset_abattoir                               1.24/1.00/3.00
 360812  1066863165  1065353216  1073741824   # x1_lr_tileset_abattoir_small                         1.18/1.00/2.00
+322710  1066947052  1065353216  1077936128   # x1_lr_tileset_aqueducts                              1.19/1.00/3.00
+333443  1066443735  1065353216  1065353216   # x1_lr_tileset_aqueducts_small                        1.13/1.00/1.00
 360769  1062333317  1065353216  1073741824   # x1_lr_tileset_bogcave_small                          0.82/1.00/2.00
+331388  1064514355  1065353216  1082130432   # x1_lr_tileset_catacombs                              0.95/1.00/4.00
+360757  1065185444  1065353216  1065353216   # x1_lr_tileset_catacombs_small                        0.99/1.00/1.00
 324425  1065520988  1065353216  1065353216   # x1_lr_tileset_cath_small                             1.02/1.00/1.00
 275926  1061830001  1065353216  1073741824   # x1_lr_tileset_corruptspire                           0.79/1.00/2.00
-336143  1065353216  1065353216  1065353216   # x1_lr_tileset_corruptspire_small                     1.00/1.00/1.00
+336143  1061326684  1065353216  1065353216   # x1_lr_tileset_corruptspire_small                     0.76/1.00/1.00
 335992  1063004406  1065353216  1073741824   # x1_lr_tileset_crater_small                           0.86/1.00/2.00
-350313  1065353216  1065353216  1065353216   # x1_lr_tileset_cratertowers5_small                    1.00/1.00/1.00
 275946  1065940419  1065353216  1073741824   # x1_lr_tileset_crypt                                  1.07/1.00/2.00
 327768  1066108191  1065353216  1065353216   # x1_lr_tileset_crypt_small                            1.09/1.00/1.00
 349173  1055286886  1055286886  1065353216   # x1_lr_tileset_exterior_boneyards                     0.45/0.45/1.00
+486860  1055286886  1055286886  1065353216   # x1_lr_tileset_exterior_boneyards_gg                  0.45/0.45/1.00
+486861  1065353216  1065353216  1065353216   # x1_lr_tileset_exterior_graveyard_small_gg            1.00/1.00/1.00
 487223  1065353216  1065353216  1065353216   # x1_lr_tileset_exterior_graveyard_small_gr            1.00/1.00/1.00
 336148  1066443735  1065353216  1073741824   # x1_lr_tileset_floodedcave_small                      1.13/1.00/2.00
 331387  1065940419  1065353216  1077936128   # x1_lr_tileset_fortress                               1.07/1.00/3.00
 360796  1065185444  1065353216  1065353216   # x1_lr_tileset_fortress_small                         0.99/1.00/1.00
 362178  1061662228  1065353216  1065353216   # x1_lr_tileset_hellportala_small                      0.78/1.00/1.00
 362187  1063004406  1065353216  1065353216   # x1_lr_tileset_hellportalb_small                      0.86/1.00/1.00
-360737  1077936128  1077936128  1073741824   # x1_lr_tileset_hexmaze_small                          3.00/3.00/2.00
+360737  1065353216  1065353216  1065353216   # x1_lr_tileset_hexmaze_small                          1.00/1.00/1.00
+336149  1065520988  1065353216  1073741824   # x1_lr_tileset_icecave_small                          1.02/1.00/2.00
 322662  1065772646  1065353216  1082130432   # x1_lr_tileset_keep_forge                             1.05/1.00/4.00
 336234  1066108191  1065353216  1065353216   # x1_lr_tileset_keep_forge_small                       1.09/1.00/1.00
 336239  1066275963  1065353216  1065353216   # x1_lr_tileset_keep_river_small                       1.11/1.00/1.00
@@ -54,9 +63,12 @@
 275930  1066359849  1065353216  1077936128   # x1_lr_tileset_leorics                                1.12/1.00/3.00
 327401  1065604874  1065353216  1065353216   # x1_lr_tileset_leorics_small                          1.03/1.00/1.00
 336242  1066695393  1065353216  1073741824   # x1_lr_tileset_rootcave_small                         1.16/1.00/2.00
-336244  1065353216  1065353216  1065353216   # x1_lr_tileset_sewers_small                           1.00/1.00/1.00
+288843  1066443735  1065353216  1077936128   # x1_lr_tileset_sewers                                 1.13/1.00/3.00
+336244  1066108191  1065353216  1065353216   # x1_lr_tileset_sewers_small                           1.09/1.00/1.00
+336246  1065353216  1065353216  1065353216   # x1_lr_tileset_spidercaves_small                      1.00/1.00/1.00
+360815  1065353216  1065353216  1073741824   # x1_lr_tileset_westmarch_small                        1.00/1.00/2.00
 360835  1066359849  1065353216  1073741824   # x1_lr_tileset_westmarchfire_small                    1.12/1.00/2.00
 337001  1065604874  1065353216  1073741824   # x1_lr_tileset_wormcaves_small                        1.03/1.00/2.00
 275945  1062668861  1065353216  1077936128   # x1_lr_tileset_zoltarchives                           0.84/1.00/3.00
-327864  1065353216  1065353216  1065353216   # x1_lr_tileset_zoltarchives_small                     1.00/1.00/1.00
+327864  1063507722  1065353216  1065353216   # x1_lr_tileset_zoltarchives_small                     0.89/1.00/1.00
 337003  1064178811  1065353216  1065353216   # x1_lr_tileset_zoltruins_small                        0.93/1.00/1.00
