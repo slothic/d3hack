@@ -1,245 +1,213 @@
-# d3hack example configuration
-# Copy to: sd:/config/d3hack-nx/config.toml
-
-[resolution_hack]
-# Master toggle for the resolution patch set.
-SectionEnabled = true
-# Output target vertical resolution; can be numeric or aliases:
-# - 900 -> 1600x900  (aliases "900p" | "default" | "unchanged")
-# - 1080 -> 1920x1080 (aliases "1080p" | "FHD")
-# - 1440 -> 2560x1440 (aliases "1440p" | "QHD")
-# - 2160 -> 3840x2160 (aliases "2160p" | "4K" | "UHD")
-OutputTarget = 1080
-# Handheld output scale for render target resolution calc (percent; 0=auto/stock 80%).
-OutputHandheldScale = 85
-# Spoof docked mode (forces docked mode when docked/handheld checks occur).
-SpoofDocked = false
-# Minimum resolution scale (percentage) to apply. 70% = default target // 100% = locked resolution.
-MinResScale = 80
-# Maximum resolution scale (percentage) to apply. 100% = default target.
-MaxResScale = 100
-# Use Blizzard's experimental scheduler; may improve performance/stability.
-ExperimentalScheduler = false
-
-[resolution_hack.extra]
-# Optional display mode overrides. Use -1 to keep game defaults.
-WindowLeft = -1
-WindowTop = -1
-WindowWidth = -1
-WindowHeight = -1
-UIOptWidth = -1
-UIOptHeight = -1
-RenderWidth = -1
-RenderHeight = -1
-RefreshRate = -1
-BitDepth = -1
-MSAALevel = -1
-
-[seasons]
-# Enable season overrides (SeasonNumber; SeasonMapMode lives under [events]).
-SectionEnabled = true
-# Allow online play (true keeps "Connect to Diablo Servers" visible).
-AllowOnlinePlay = false
-# Force the season number when SectionEnabled is true.
-SeasonNumber = 37
-# Spoof OnlineService PTR flag (treat this build as PTR).
-SpoofPtr = false
-
 [challenge_rifts]
-# Enable offline challenge rift overrides.
-SectionEnabled = true
-# Randomize rifts within the range below.
 MakeRiftsRandom = true
-# Inclusive range of rift indexes to choose from.
-RiftRangeStart = 0
 RiftRangeEnd = 28
-
-[events]
-# Enable event flags + seasonal map overlays.
+RiftRangeStart = 0
 SectionEnabled = true
-# Season map modes: "MapOnly" | "OverlayConfig" | "Disabled"
-# - MapOnly: apply the season's mapped theme (Seasons 14-22 and 24-37), ignore flags below.
-# - OverlayConfig: apply map, plus add any event flags below.
-# - Disabled: ignore the map and use flags below as-is.
-SeasonMapMode = "OverlayConfig"
-# In-Game Rewards (IGR) flag.
-IgrEnabled = false
-# Anniversary event (Holiday Gifts, etc.).
-AnniversaryEnabled = false
-# Easter egg / cow level world flag.
-EasterEggWorldEnabled = false
-# Double rift keystone drops.
-DoubleRiftKeystones = false
-# Double blood shard rewards.
-DoubleBloodShards = false
-# Season 14 - Season of Greed (double goblins).
-DoubleTreasureGoblins = false
-# Season 15 - Boon of the Horadrim (double bounty bags).
-DoubleBountyBags = false
-# Season 16 - Season of Grandeur (Ring of Royal Grandeur buff).
-RoyalGrandeur = false
-# Season 17 - Season of Nightmares (Legacy of Nightmares buff).
-LegacyOfNightmares = false
-# Season 18 - Season of the Triune (Triune circles).
-TriunesWill = false
-# Season 19 - Season of Eternal Conflict (Pandemonium killstreaks).
-Pandemonium = false
-# Season 20/31/37 - Season of the Forbidden Archives (unrestricted Kanai's Cube powers).
-KanaiPowers = true
-# Season 21 - Trials of the Tempests (elemental meteors).
-TrialsOfTempests = false
-# Season 22/33 - Shades of the Nephalem (Shrines/Pylons = Shadow Clones).
-ShadowClones = false
-# Season 22/33 - Shades of the Nephalem (4th Kanai's Cube slot).
-FourthKanaisCubeSlot = false
-# Season 24/32 - Ethereal Memory (Ethereal weapons).
-EtherealItems = false
-# Season 25/30/36 - The Lords of Hell (Soul Shards).
-SoulShards = false
-# Season 26 - The Fall of the Nephalem (Echoing Nightmares).
-SwarmRifts = true
-# Season 27/34 - Light's Calling (Sanctified items).
-SanctifiedItems = false
-# Season 28 - Rites of Sanctuary (Altar of Rites: Dark Alchemy).
-DarkAlchemy = true
-# Season 29 - Visions of Enmity (Nesting Portals / Diabolical Fissures).
-NestingPortals = true
-
-[rare_cheats]
-# Enable super god mode (invulnerable + debug flags).
-SuperGodMode = false
-# Infinite resource/MP (also enabled implicitly by SuperGodMode).
-InfiniteMP = true
-# Extra Greater Rift orbs when killing elites.
-ExtraGreaterRiftOrbsOnEliteKill = false
-# Master toggle for gameplay-altering cheats/hacks.
-SectionEnabled = true
-# Movement speed multiplier (1.0 = normal).
-MovementSpeedMultiplier = 1.3
-# Attack speed multiplier (1.0 = normal).
-AttackSpeedMultiplier = 1.2
-# Enable colored floating damage numbers (debug hook).
-FloatingDamageColor = true
-# 100% legendary probability for Kadala/Kanai.
-GuaranteedLegendaryChance = false
-# Allow restricted drops (Staff of Herding, etc.).
-DropAnyItems = true
-# Instant town portal + Book of Cain.
-InstantPortalAndBookOfCain = true
-# Remove cooldowns for skills.
-NoCooldowns = true
-# Instant identify/craft/enchant + instant cube crafts.
-InstantCubeAndCraftsAndEnchants = true
-# Allow socketing any gem into any slot.
-SocketGemsToAnySlot = true
-# Auto-pickup loot.
-AutoPickup = false
-# Equip items in any slot (slot restrictions removed).
-EquipAnySlot = false
-# Unlock all difficulties without prerequisites.
-UnlockAllDifficulties = true
-# Boost damage for ACTOR_EASYKILL_BIT (debug/dev).
-EasyKillDamage = false
-# Kanai's Cube recipes don't consume materials.
-CubeNoConsumeMaterials = false
-# Legendary gem upgrades always succeed.
-LegendaryGemUpgradeAlways = false
-# Speed up legendary gem upgrade flow.
-LegendaryGemUpgradeSpeed = true
-# Set legendary gems to level 150 after a single upgrade.
-LegendaryGemLevel150 = false
-# Equip multiple legendary items that would normally be restricted.
-EquipMultipleLegendaries = true
-
-# --- v3.6 / v3.7 ---
-# Pull the camera back. This is a distance along the view direction, not a
-# multiplier, so it stays sane at every angle. 0 = stock. 35 is roughly twice
-# the stock view; past about 80 the world starts running out before the screen
-# does. CameraZoom below is the older knob and is superseded -- leave it at 0.
-ViewDolly = 35.0
-# Let shadows follow the pulled-back camera. Off because it costs frames and
-# changes nothing you can see at normal dolly values.
-ViewDollyShadows = false
-# On-screen combat log: what you pulled and what died, with monster names,
-# rarity colours and elite affixes.
-CombatLog = true
-# Scale the rested-experience grant as well as the normal one. Without this the
-# multiplier applies to only part of a kill's XP, which is why the effective
-# rate used to wander between 1x and the number you set.
-XpScaleRested = true
-# Altar of Rites seal costs. 1 = swap the Infernal Machine organ requirements
-# for blood shards and crafting materials. 0 = stock. 2 also strips other
-# seals' item requirements, which is more than most people want.
-AltarItemCostMode = 1
-# Take as much of a blood shard pile as fits instead of refusing the whole pile,
-# the way the PC version does. The remainder stays on the ground.
-PartialCurrencyPickup = true
-# Monsters stop adding the Scoundrel and the Enchantress to their target lists.
-# The Templar is deliberately left alone -- he is the one meant to hold a pack.
-FollowerNoAggro = true
-
-[overlays]
-# Overlay UI/watermarks.
-SectionEnabled = true
-# Show build locker watermark.
-BuildLockerWatermark = false
-# Show FPS label.
-FPSLabel = false
-# Show variable resolution label.
-VariableResLabel = true
-# Show D3Hack build version label.
-DDMLabels = true
-
-[loot_modifiers]
-# Loot drop overrides.
-SectionEnabled = true
-# Disable all ancient items.
-DisableAncientDrops = false
-# Disable primal ancient items.
-DisablePrimalAncientDrops = false
-# Disable torment-only drops.
-DisableTormentDrops = false
-# Skip torment gating checks (treat as max torment).
-DisableTormentCheck = true
-# Suppress Ramaladni's Gift generation.
-SuppressGiftGeneration = false
-# Force item level for drops (1-70).
-ForcedILevel = 0
-# Force run level for tiered loot tables.
-TieredLootRunLevel = 0
-# Minimum ancient rank for every drop (Normal | Ancient | Primal).
-# This is a FLOOR, not a replacement: the game rolls ancient/primal normally first and
-# only gets raised to meet this. "Normal" therefore means "no override" -- to actually
-# suppress ancients use DisableAncientDrops / DisablePrimalAncientDrops above.
-AncientRank = "Normal"
-# Greater Rift tier at which every legendary is floored to Ancient (0 = off).
-# Below this tier -- and in normal Nephalem rifts, which have no tier at all -- drop
-# ranks are left completely alone.
-AncientMinGRLevel = 120
-# Greater Rift tier at which the first few legendaries of each rift are forced Primal
-# (0 = off). Primals the game rolled on its own do not count against the budget.
-PrimalMinGRLevel = 151
-# How many forced primals each rift above PrimalMinGRLevel is allowed.
-PrimalGuaranteedCount = 3
 
 [debug]
-# Debug-only features.
-SectionEnabled = true
-# Dump pub files to SD for inspection.
-EnablePubFileDump = false
-# Enable error trace logging.
-EnableErrorTraces = true
-# Enable additional debug flags.
+Acknowledge_god_jester = false
 EnableDebugFlags = false
-# Spoof network account functions.
+EnableErrorTraces = false
+EnableExceptionHandler = true
+EnableOeNotificationHook = false
+EnablePubFileDump = false
+LogOeNotificationMessages = false
+SectionEnabled = true
 SpoofNetworkFunctions = false
 
+[events]
+AllowSeasonalItemsOffSeason = true
+AnniversaryEnabled = false
+DarkAlchemy = true
+DoubleBloodShards = true
+DoubleBountyBags = true
+DoubleRiftKeystones = true
+DoubleTreasureGoblins = true
+EasterEggWorldEnabled = true
+EtherealItems = true
+FourthKanaisCubeSlot = true
+IgrEnabled = false
+KanaiPowers = true
+LegacyOfNightmares = false
+NestingPortals = true
+Pandemonium = false
+RoyalGrandeur = true
+SanctifiedItems = true
+SeasonMapMode = 'OverlayConfig'
+SectionEnabled = true
+ShadowClones = true
+SoulShards = true
+SwarmRifts = true
+TrialsOfTempests = false
+TriunesWill = true
+
 [gui]
-# NVN ImGui overlay configuration UI.
-# Hotkey: hold + and - (0.5s) to toggle visibility.
-Enabled = true
-Visible = false
-# Allow left stick to reach the game while the overlay is open.
 AllowLeftStickPassthrough = true
-# Optional GUI language override (e.g. "zh"). Leave empty to use game locale.
-Language = ""
+Enabled = false
+Language = 'en'
+Visible = false
+
+[loot_modifiers]
+AncientMinGRLevel = 120
+AncientRank = 'Normal'
+DisableAncientDrops = false
+DisablePrimalAncientDrops = false
+DisableTormentCheck = true
+DisableTormentDrops = false
+ForcedILevel = 0
+PrimalGuaranteedCount = 3
+PrimalMinGRLevel = 151
+SectionEnabled = true
+SuppressGiftGeneration = false
+TieredLootRunLevel = 0
+
+[overlays]
+BuildLockerWatermark = false
+DDMLabels = true
+FPSLabel = true
+SectionEnabled = false
+VariableResLabel = true
+
+[rare_cheats]
+AltarChallengeRiftCacheAshes = 55
+CameraZoom = 0.0
+CombatLog = true
+DisabledMonsterAffixes = "Juggernaut, Wormhole, Shielding"
+BannedRiftMaps = "p1_lr_tileset_cesspools_large, p1_lr_tileset_cesspools_small, p43_lr_tileset_interiorgrift_desert, p43_lr_tileset_interiorgrift_desert_gg, p43_lr_tileset_interiorgrift_festeringwoodsdrlg_gg, p43_lr_tileset_interiorgrift_forest_coast, p43_lr_tileset_interiorgrift_forest_snow, p43_lr_tileset_interiorgrift_pandext, p43_lr_tileset_interiorgrift_pandext_gg, p4_lr_tileset_forest_coast_cave, p4_lr_tileset_forest_coast_cave_large, p4_lr_tileset_forest_coast_cave_small, p6_lr_tileset_interiorgrift_moors, p6_lr_tileset_interiorgrift_moors_gg, px_lr_tileset_church, px_lr_tileset_church_small, px_lr_tileset_exterior_tristramfieldsdrlg_small_gg, px_lr_tileset_exterior_tristramfieldsdrlg_small_gr, x1_lr_tileset_abattoir, x1_lr_tileset_abattoir_large, x1_lr_tileset_abattoir_small, x1_lr_tileset_aqueducts, x1_lr_tileset_aqueducts_large, x1_lr_tileset_aqueducts_small, x1_lr_tileset_bogcave, x1_lr_tileset_bogcave_large, x1_lr_tileset_bogcave_small, x1_lr_tileset_catacombs, x1_lr_tileset_catacombs_large, x1_lr_tileset_catacombs_small, x1_lr_tileset_cath, x1_lr_tileset_cath_extralarge, x1_lr_tileset_cath_large, x1_lr_tileset_cath_small, x1_lr_tileset_corruptspire, x1_lr_tileset_corruptspire_large, x1_lr_tileset_corruptspire_small, x1_lr_tileset_crater, x1_lr_tileset_crater_small, x1_lr_tileset_cratertowers1_small, x1_lr_tileset_cratertowers2_small, x1_lr_tileset_cratertowers3_small, x1_lr_tileset_cratertowers4_small, x1_lr_tileset_cratertowers5_small, x1_lr_tileset_cratertowers6_small, x1_lr_tileset_cratertowers7_small, x1_lr_tileset_crypt, x1_lr_tileset_crypt_large, x1_lr_tileset_crypt_small, x1_lr_tileset_crypt_small_udderchaos, x1_lr_tileset_event_crypt_udderchaos, x1_lr_tileset_exterior_boneyards_gg, x1_lr_tileset_exterior_gardensofhope1, x1_lr_tileset_exterior_gardensofhope2, x1_lr_tileset_exterior_gardensofhope3, x1_lr_tileset_exterior_graveyard_small_gg, x1_lr_tileset_exterior_graveyard_small_gr, x1_lr_tileset_exterior_ramparts1, x1_lr_tileset_exterior_ramparts2, x1_lr_tileset_exterior_ramparts3, x1_lr_tileset_exterior_rampartsdamaged1, x1_lr_tileset_exterior_rampartsdamaged2, x1_lr_tileset_exterior_rampartsdamaged3, x1_lr_tileset_floodedcave, x1_lr_tileset_floodedcave_large, x1_lr_tileset_floodedcave_small, x1_lr_tileset_fortress, x1_lr_tileset_fortress_large, x1_lr_tileset_fortress_small, x1_lr_tileset_fortressislands, x1_lr_tileset_fortressislands_small, x1_lr_tileset_hellportala_small, x1_lr_tileset_hellportalb_small, x1_lr_tileset_hexmaze, x1_lr_tileset_hexmaze_large, x1_lr_tileset_hexmaze_small, x1_lr_tileset_icecave, x1_lr_tileset_icecave_large, x1_lr_tileset_icecave_small, x1_lr_tileset_keep_forge, x1_lr_tileset_keep_forge_large, x1_lr_tileset_keep_forge_small, x1_lr_tileset_keep_river, x1_lr_tileset_keep_river_large, x1_lr_tileset_keep_river_small, x1_lr_tileset_keep_war, x1_lr_tileset_keep_war_large, x1_lr_tileset_keep_war_small, x1_lr_tileset_leorics, x1_lr_tileset_leorics_large, x1_lr_tileset_leorics_small, x1_lr_tileset_monster_prototypes, x1_lr_tileset_rootcave, x1_lr_tileset_rootcave_large, x1_lr_tileset_rootcave_small, x1_lr_tileset_sewers, x1_lr_tileset_sewers_large, x1_lr_tileset_sewers_small, x1_lr_tileset_spidercaves, x1_lr_tileset_spidercaves_large, x1_lr_tileset_spidercaves_small, x1_lr_tileset_westmarch, x1_lr_tileset_westmarch_large, x1_lr_tileset_westmarch_small, x1_lr_tileset_westmarchfire, x1_lr_tileset_westmarchfire_large, x1_lr_tileset_westmarchfire_small, x1_lr_tileset_wormcaves, x1_lr_tileset_wormcaves_large, x1_lr_tileset_wormcaves_small, x1_lr_tileset_zoltarchives, x1_lr_tileset_zoltarchives_large, x1_lr_tileset_zoltarchives_small, x1_lr_tileset_zoltruins, x1_lr_tileset_zoltruins_large, x1_lr_tileset_zoltruins_small"
+AllowedRiftMaps = ""
+PreferredRiftMaps = ""
+RiftMapSubstitute = false
+MapDensityOverrides = "p4_lr_tileset_exterior_forest_small=10, p4_lr_tileset_exterior_forest_snow_small=10, p4_lr_tileset_ruins_frost_small=10, px_lr_tileset_exterior_battlefieldsdrlg_small=10, px_lr_tileset_exterior_desert_small=10, px_lr_tileset_exterior_festeringwoodsdrlg_small=10, px_lr_tileset_exterior_leoricsjail_small=10, px_lr_tileset_exterior_moors_small=10, px_lr_tileset_exterior_oasisdrlg_small=10, px_lr_tileset_exterior_tristramfieldsdrlg_small=10, x1_lr_tileset_exterior_bog_small=10, x1_lr_tileset_exterior_graveyard_small=10, x1_lr_tileset_exterior_pandext_small=10, x1_lr_tileset_pony_small=10, x1_lr_tileset_exterior_boneyards_large=10, px_lr_tileset_exterior_battlefieldsdrlg_large=10"
+FollowerNoAggro = true
+InfiniteShrineBuffs = true
+PartialCurrencyPickup = true
+PowerRandomProbe = false
+PowerRandomBiasSno = 488544
+PowerRandomBiasPercent = 20
+PowerFormulaProbe = false
+PowerFormulaScaleSno = 266627
+PowerFormulaScaleIndex = -1
+PowerFormulaScaleIndexList = "16"
+PowerFormulaScalePercent = 800
+HealthWellsAsPoolsOfReflection = true
+ViewDolly = 35.0
+ViewDollyShadows = false
+WellSpawnProbe = false
+GreaterRiftDensityMultiplier = 10
+GreaterRiftDensityRiftsOnly = false
+RiftLevelDump = false
+RiftTableDump = false
+MonsterAffixDump = false
+AltarDumpTables = false
+AltarItemCostMode = 1
+AltarMaterialPercent = 100
+AnySlotMaxSockets = 3
+AttackSpeedMultiplier = 1.0
+AutoPickup = false
+CubeAugmentGemRankCap = 10000
+CubeNoConsumeMaterials = false
+DropAnyItems = true
+EasyKillDamage = false
+EquipAnySlot = false
+EquipMultipleLegendaries = false
+SetBonusAnyWeapon = false
+ExperienceMultiplier = 1
+ExperienceMultiplierHighGR = 2
+ExperienceMultiplierHighGRMinLevel = 151
+ExtraGreaterRiftOrbsCount = 20
+ExtraGreaterRiftOrbsOnEliteKill = false
+FloatingDamageColor = false
+FreeSocketsOnEveryItem = 3
+GuaranteedLegendaryChance = false
+InfiniteMP = false
+InstantCubeAndCraftsAndEnchants = true
+InstantPortalAndBookOfCain = false
+ItemSocketProbe = false
+LegendaryGemChanceFloorMinGRLevel = 151
+LegendaryGemChanceFloorPercent = 10
+LegendaryGemLevel150 = false
+LegendaryGemMaxLevel = 10000
+LegendaryGemUncapped = true
+LegendaryGemUpgradeAlways = false
+LegendaryGemUpgradeSpeed = true
+EmpoweredGemUpgrades = 0
+MaxGreaterRiftLevel = 500
+MaxParagonLevel = 2000000000
+MovementSpeedMultiplier = 1.0
+NoCooldowns = false
+ParagonNoReset = true
+ParagonStatCap = 250
+PoolOfReflectionLevelsPerGrant = 25
+PoolOfReflectionMaxCount = 0
+ExperienceHookMode = 3
+PoolOfReflectionGrantHook = true
+PoolOfReflectionSlotProbe = false
+PoolOfReflectionTouchHook = false
+PoolOfReflectionXpPercent = 25
+SetBonusTierShift = true
+SetBonusDump = false
+RamaladniAnyItem = false
+SectionEnabled = true
+SocketAffixAnySlot = false
+SocketAffixSuppress = true
+SocketGemsToAnySlot = true
+SuperGodMode = false
+UnlockAllDifficulties = false
+XpScaleRested = true
+
+MomentumAutoFireEvery = 0
+MomentumDurationPercent = 100
+MomentumNoDecay = false
+BuffStackProbe = false
+RiftRewardProbe = false
+DamageBonusProbe = false
+SnoNameList = ""
+SetBonusInspect = ""
+RiftPreferLowFog = false
+MapNameOverlay = true
+WorldGenProbe = false
+ViewDollyLog = false
+CameraDistLog = false
+CameraDistCaller = 0
+CameraTrap = false
+CameraEyeWrite = false
+CameraObserverId = 0
+CameraObserverScan = false
+CameraObserverDump = false
+CameraObserver = 0
+CameraObserverProbe = false
+EliteEventProbe = false
+CameraObserverOverride = 0
+ShrineDurationPercent = 100
+ShrineDurationProbe = false
+XpCensus = false
+ShardProbe = false
+CameraFieldDump = false
+[resolution_hack]
+ClampTextureResolution = 1152
+ExperimentalScheduler = false
+MaxResScale = 100.0
+MinResScale = 100.0
+OutputHandheldScale = 0.0
+OutputTarget = 1080
+SectionEnabled = false
+SpoofDocked = true
+
+    [resolution_hack.extra]
+    BitDepth = -1
+    MSAALevel = -1
+    RefreshRate = -1
+    RenderHeight = -1
+    RenderWidth = -1
+    UIOptHeight = -1
+    UIOptWidth = -1
+    WindowHeight = -1
+    WindowLeft = -1
+    WindowTop = -1
+    WindowWidth = -1
+
+[seasons]
+AllowOnlinePlay = false
+SeasonNumber = 37
+SectionEnabled = true
+SpoofPtr = false

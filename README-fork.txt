@@ -33,7 +33,7 @@ that controls it.
    Set damage bonuses ignore the weapon requirement  SetBonusAnyWeapon = true
 
  MONSTERS
-   Monster density x3 ............................ GreaterRiftDensityMultiplier = 3
+   Monster density x10 ........................... GreaterRiftDensityMultiplier = 10
    Juggernaut, Wormhole and Shielding never roll .. DisabledMonsterAffixes
    (any elite affix can be disabled by name)
 
@@ -161,10 +161,15 @@ SET BONUSES SHIFT DOWN ONE TIER
 ---------------------------------------------------------------------------
 
 MONSTER DENSITY x3
-    Three times as many spawn groups are placed, of the normal shape -- so
+    That many times more spawn groups are placed, of the normal shape -- so
     elite and champion ratios stay as designed, there are simply more packs.
-        GreaterRiftDensityMultiplier = 3  1 = stock
+        GreaterRiftDensityMultiplier = 10  1 = stock, up to 20
         GreaterRiftDensityRiftsOnly  = false
+
+    RiftsOnly = true confines the multiplier to rift floors and leaves town
+    and the open world at stock. It works properly from v3.10; before that it
+    tested the rift TIER, which is not set yet when the world is built, so
+    switching it on turned density off everywhere instead.
 
     This applies EVERYWHERE, not only in Greater Rifts. Rift-only is not
     possible: monsters are placed before the game has decided the rift tier,
@@ -578,7 +583,8 @@ CRASHES AFTER ENTERING A WORLD
         SocketAffixSuppress            = false
 
 TOO MANY MONSTERS / SLOWDOWN
-    GreaterRiftDensityMultiplier = 2, or 1 for stock.
+    GreaterRiftDensityMultiplier = 3, or 1 for stock. It goes up to 20;
+    the shipped 10 is a lot, and open maps feel it most.
 
 XP MULTIPLIER LOOKS WRONG
     Delete pools_u0.txt to reset the pool count.
@@ -644,6 +650,11 @@ NEW FEATURES
         Wilderness, plain Tristram Fields -- will not work, and cannot
         start working, because the game never rolls them there. Those are
         Nephalem rift tilesets.
+
+      * MapDensityOverrides sets density per map, for the open tilesets
+        that look bare at a multiplier tuned for corridors. It works from
+        v3.10 -- before that it was gated on the rift tier, which is not set
+        when the world is built, so no override ever applied.
 
       * If you ban nearly everything, check the log once. D3Debug.txt
         beside config.toml says one of:
