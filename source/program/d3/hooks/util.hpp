@@ -3608,6 +3608,75 @@ namespace d3 {
         }
     }
 
+    // d3hack-custom: THE NUMBER ABBREVIATOR. Already bound, and named.
+    //
+    //     FormatTruncatedNumber(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
+    //         -> CRefString                                            @ 0x34C8D0
+    //
+    // Found after the font-draw route turned out to be a dead end: those three
+    // sym_font_string_draw_* hooks install and are never called, which the install lines now
+    // prove. The suffix keys (General:StatAbbr / ...Millions / ...Billions / ...Trillions) are
+    // no help either -- zero ADRP anywhere in .text reaches their pages, so they are asset
+    // data, not a table code indexes.
+    //
+    // This is the layer that matters: the VALUE arrives as a float, so its true magnitude is
+    // known here, and the result is a CRefString whose whole construction API is already bound
+    // (ctor, operator=, Append). Anything above the game's top tier can simply be reformatted.
+    //
+    // PROVE IT FIRST. Three separate features in this fork were built on a layer that logged
+    // convincingly and turned out to be downstream of the decision. So this is read-only for
+    // now: log the value, what the game produced from it, and the caller.
+    HOOK_DEFINE_TRAMPOLINE(NumberFormatProbeHook) {
+        static auto Callback(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
+            -> CRefString {
+            CRefString tOut = Orig(flValue, bUseMillions, bIncludeSpecialChar);
+            if (!global_config.rare_cheats.number_format_probe)
+                return tOut;
+
+            {
+                static int s_nAll = 0;
+                if (++s_nAll == 1)
+                    PRINT_LINE("[d3hack-numfmt] FormatTruncatedNumber hook is LIVE (0x34C8D0)");
+            }
+
+            static int s_nSeen = 0;
+            if (s_nSeen >= 28)
+                return tOut;
+            const char *sz = tOut.str();
+            if (sz == nullptr)
+                return tOut;
+
+            // Distinct OUTPUT strings only. A damage number changes every hit, so keying on
+            // the value would fill the budget in one pull and never show the interesting
+            // magnitudes.
+            u64 h = 1469598103934665603ull;
+            int n = 0;
+            for (; n < 40 && sz[n] != 0; ++n) {
+                h ^= static_cast<u64>(static_cast<unsigned char>(sz[n]));
+                h *= 1099511628211ull;
+            }
+            static u64 s_arSeen[28] = {};
+            for (int i = 0; i < s_nSeen; ++i)
+                if (s_arSeen[i] == h)
+                    return tOut;
+            s_arSeen[s_nSeen++] = h;
+
+            // The log macro has no float formatting. flValue is a float, so past ~1.7e7 it is
+            // already an approximation -- printing the integer part is exactly as precise as
+            // the input and avoids pretending otherwise. Guarded, because a float can hold
+            // more than s64 can.
+            const bool bHuge  = (flValue >= 9.0e18f || flValue <= -9.0e18f);
+            const s64  nWhole = bHuge ? 0 : static_cast<s64>(flValue);
+            const u64  uFrom  = reinterpret_cast<u64>(__builtin_return_address(0)) -
+                               exl::util::modules::GetTargetStart();
+            PRINT("[d3hack-numfmt] value=%ld%s millions=%d special=%d -> \"%s\"  caller +0x%lX",
+                  nWhole, bHuge ? " (>9e18, not printable as int)" : "",
+                  static_cast<int>(bUseMillions), static_cast<int>(bIncludeSpecialChar), sz,
+                  uFrom)
+            return tOut;
+        }
+    };
+
     HOOK_DEFINE_INLINE(RiftPlanDump) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             const bool bSwap = global_config.rare_cheats.rift_map_substitute;
@@ -11317,6 +11386,10 @@ namespace d3 {
             // install whenever the feature is on -- gating it on the diagnostic meant turning
             // WorldGenProbe off silently disabled banning. The other three are pure
             // diagnostics and stay behind the probe flag.
+            if (global_config.rare_cheats.number_format_probe) {
+                NumberFormatProbeHook::InstallAtFuncPtr(FormatTruncatedNumber);
+                PRINT_LINE("[d3hack-numfmt] FormatTruncatedNumber hook installed (0x34C8D0)");
+            }
             if (global_config.rare_cheats.world_gen_probe ||
                 global_config.rare_cheats.rift_map_substitute) {
                 RiftPlanQuery::InstallAtOffset(0x816E98);   // sets the once-per-rift trigger

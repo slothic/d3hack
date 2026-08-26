@@ -296,7 +296,12 @@ namespace d3 {
         PRINT("[d3hack-numfmt] utility debug hooks running (debug.active=%d probe=%d)",
               global_config.debug.active ? 1 : 0,
               global_config.rare_cheats.number_format_probe ? 1 : 0)
-        if (global_config.debug.active || global_config.rare_cheats.number_format_probe) {
+        // PROVEN DEAD, 2026-08-26: these three install successfully and are NEVER called.
+        // The install lines above printed with debug.active=1 and the hook's own
+        // first-call line never did. Whatever renders this game's text, it is not these.
+        // Left installed only under debug.active, where they have always been inert; the
+        // number-format work moved to FormatTruncatedNumber (0x34C8D0).
+        if (global_config.debug.active) {
             FontStringDrawHook::
                 InstallAtSymbol("sym_font_string_draw_03ff50");
             FontStringDrawHook::
