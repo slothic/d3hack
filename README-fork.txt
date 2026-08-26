@@ -177,7 +177,8 @@ MONSTER DENSITY x3
     A MapDensityOverrides entry REPLACES whichever of the two would apply --
     it does not stack with them and it is not a floor. An override of 10 on a
     map, with the rift value at 100, makes that map TEN times stock and not a
-    hundred. Set overrides relative to the number you actually want.
+    hundred. Set overrides relative to the number you actually want; they take
+    1..1000, the same range as the two settings above.
 
     RiftsOnly = true confines the multiplier to rift floors and leaves town
     and the open world at stock. It works properly from v3.10; before that it

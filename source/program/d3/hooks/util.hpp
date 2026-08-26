@@ -1869,8 +1869,11 @@ namespace d3 {
             for (size_t k = eq + 1; k < b; ++k)
                 if (sList[k] >= '0' && sList[k] <= '9')
                     nMul = (nMul * 10) + (sList[k] - '0');
-            if (nMul < 1 || nMul > 64) {
-                PRINT("[d3hack-density] \"%.*s\" multiplier %d out of range 1..64 -- ignored",
+            // 1..1000, matching GreaterRiftDensityMultiplier and WorldDensityMultiplier. The
+            // old ceiling of 64 sat below what those two now accept, so an override meant to
+            // beat a global of 100 was thrown out for being too large.
+            if (nMul < 1 || nMul > 1000) {
+                PRINT("[d3hack-density] \"%.*s\" multiplier %d out of range 1..1000 -- ignored",
                       static_cast<int>(ne - a), sList.c_str() + a, nMul)
                 continue;
             }
