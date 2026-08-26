@@ -500,6 +500,9 @@ namespace {
             t.insert("WellSpawnProbe", config.rare_cheats.well_spawn_probe);
             t.insert("GreaterRiftDensityMultiplier", config.rare_cheats.gr_density_multiplier);
             t.insert("WorldDensityMultiplier", config.rare_cheats.world_density_multiplier);
+            t.insert("RiftDensitySmall", config.rare_cheats.rift_density_small);
+            t.insert("RiftDensityNormal", config.rare_cheats.rift_density_normal);
+            t.insert("RiftDensityLarge", config.rare_cheats.rift_density_large);
             t.insert("GreaterRiftDensityRiftsOnly", config.rare_cheats.gr_density_rifts_only);
             t.insert("RiftLevelDump", config.rare_cheats.rift_level_dump);
             t.insert("RiftTableDump", config.rare_cheats.rift_table_dump);
@@ -719,6 +722,9 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         // configured 50 became 20 with no word said about it.
         rare_cheats.gr_density_multiplier   = ReadI32(*section, {"GreaterRiftDensityMultiplier"}, rare_cheats.gr_density_multiplier, 1, 1000);
         rare_cheats.world_density_multiplier = ReadI32(*section, {"WorldDensityMultiplier"}, rare_cheats.world_density_multiplier, 1, 1000);
+        rare_cheats.rift_density_small      = ReadI32(*section, {"RiftDensitySmall"}, rare_cheats.rift_density_small, 0, 1000);
+        rare_cheats.rift_density_normal     = ReadI32(*section, {"RiftDensityNormal"}, rare_cheats.rift_density_normal, 0, 1000);
+        rare_cheats.rift_density_large      = ReadI32(*section, {"RiftDensityLarge"}, rare_cheats.rift_density_large, 0, 1000);
         rare_cheats.gr_density_rifts_only   = ReadBool(*section, {"GreaterRiftDensityRiftsOnly"}, rare_cheats.gr_density_rifts_only);
         rare_cheats.rift_level_dump         = ReadBool(*section, {"RiftLevelDump"}, rare_cheats.rift_level_dump);
         rare_cheats.rift_table_dump         = ReadBool(*section, {"RiftTableDump"}, rare_cheats.rift_table_dump);

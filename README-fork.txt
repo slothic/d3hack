@@ -33,8 +33,8 @@ that controls it.
    Set damage bonuses ignore the weapon requirement  SetBonusAnyWeapon = true
 
  MONSTERS
-   Monster density, rifts ........................ GreaterRiftDensityMultiplier = 100
-   Monster density, everywhere else .............. WorldDensityMultiplier = 50
+   Monster density by map size ................... RiftDensitySmall / Normal / Large
+   Monster density, everywhere else .............. WorldDensityMultiplier = 3
    Juggernaut, Wormhole and Shielding never roll .. DisabledMonsterAffixes
    (any elite affix can be disabled by name)
 
@@ -162,23 +162,36 @@ SET BONUSES SHIFT DOWN ONE TIER
 ---------------------------------------------------------------------------
 
 MONSTER DENSITY x3
-    That many times more spawn groups are placed, of the normal shape -- so
-    elite and champion ratios stay as designed, there are simply more packs.
-        GreaterRiftDensityMultiplier = 100  inside a rift
-        WorldDensityMultiplier       = 50   town, open world, bounties
-        GreaterRiftDensityRiftsOnly  = false
-    Both go from 1 (stock) to 1000. These are large numbers -- start lower if
-    the frame rate suffers.
+    More packs are placed, of the normal shape -- elite and champion ratios
+    stay as designed, there are simply more of them.
 
-    The rift value covers Greater AND Nephalem rifts. What the game can be
-    asked at the moment a floor is built is "was this floor given a rift
-    tileset", not which kind of rift it belongs to.
+    Rift floors are set by MAP SIZE, because a corridor map and an open field
+    want very different numbers:
+        RiftDensitySmall  = 5
+        RiftDensityNormal = 10      maps with no size suffix
+        RiftDensityLarge  = 20      _large and _extralarge
+    Size is read off the map name, so all 164 maps are covered -- 56 small,
+    68 normal, 40 large -- and any map a later patch adds is covered too.
 
-    A MapDensityOverrides entry REPLACES whichever of the two would apply --
-    it does not stack with them and it is not a floor. An override of 10 on a
-    map, with the rift value at 100, makes that map TEN times stock and not a
-    hundred. Set overrides relative to the number you actually want; they take
-    1..1000, the same range as the two settings above.
+    Everything that is not a rift floor:
+        WorldDensityMultiplier = 3      town, open world, bounties
+
+    And the fallbacks:
+        GreaterRiftDensityMultiplier = 3     used when the size value is 0
+        GreaterRiftDensityRiftsOnly  = false leave rifts alone / everything else
+    All of them take 1..1000, 1 being stock.
+
+    Precedence, most specific first:
+        1. a MapDensityOverrides entry naming the map
+        2. the size class for that map
+        3. GreaterRiftDensityMultiplier
+    An override REPLACES the others rather than stacking, so set it to the
+    number you actually want. The log says which rule applied -- PER-MAP,
+    small, normal, large or rift -- next to the map name.
+
+    "Rift floor" means Greater AND Nephalem rifts. What the game can be asked
+    while a floor is being built is "was this floor given a rift tileset", not
+    which kind of rift owns it.
 
     RiftsOnly = true confines the multiplier to rift floors and leaves town
     and the open world at stock. It works properly from v3.10; before that it
@@ -597,10 +610,11 @@ CRASHES AFTER ENTERING A WORLD
         SocketAffixSuppress            = false
 
 TOO MANY MONSTERS / SLOWDOWN
-    GreaterRiftDensityMultiplier = 3 and WorldDensityMultiplier = 1, or 1
-    for stock. The shipped 100 / 50 are very high and open maps feel it
-    most. If the log says CLAMPED at 512 the multiplier is being capped
-    and raising it further changes nothing.
+    Lower RiftDensitySmall / Normal / Large, or set them to 0 and let
+    GreaterRiftDensityMultiplier decide. 1 everywhere is stock. A rift
+    floor stops multiplying after 4000 extra spawns and says so in the
+    log, so a very high number concentrates monsters at the start of the
+    floor rather than spreading them.
 
 XP MULTIPLIER LOOKS WRONG
     Delete pools_u0.txt to reset the pool count.

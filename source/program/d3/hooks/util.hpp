@@ -1819,7 +1819,7 @@ namespace d3 {
     //
     // Parsed like the other list settings: "name=multiplier", comma separated, names as they
     // appear in rift-maps.txt. An unparseable entry is reported rather than ignored.
-    inline constexpr int kMapDensityMax = 32;
+    inline constexpr int kMapDensityMax = 256;   // 164 maps exist; 32 dropped the rest SILENTLY
 
     struct MapDensity {
         s32 sno;
@@ -1877,6 +1877,11 @@ namespace d3 {
                       static_cast<int>(ne - a), sList.c_str() + a, nMul)
                 continue;
             }
+            if (s_nMapDensity >= kMapDensityMax) {
+                PRINT("[d3hack-density] override list FULL at %d -- \"%.*s\" and everything "
+                      "after it was DROPPED", kMapDensityMax, static_cast<int>(ne - a),
+                      sList.c_str() + a)
+            }
             if (s_nMapDensity < kMapDensityMax) {
                 s_arMapDensity[s_nMapDensity].sno  = sno;
                 s_arMapDensity[s_nMapDensity].nMul = nMul;
@@ -1887,11 +1892,84 @@ namespace d3 {
         }
     }
 
+    // d3hack-custom: size class straight off the map name.
+    //
+    // "All the small maps" is the request people actually have -- a corridor map and an open
+    // field want different numbers, and there are 164 names, so enumerating them in
+    // MapDensityOverrides is neither writable nor maintainable. 56 are small, 68 normal, 40
+    // large. Reading the name also covers maps added by a later patch for free.
+    //
+    // _extralarge is checked before _large because it contains it. The _gg greater-rift
+    // variants carry no size token and count as normal, which matches how they play.
+    inline auto RiftMapSizeClass(s32 sno) -> int {   // 0 normal, 1 small, 2 large
+        const char *szName = RiftMapName(sno);
+        if (szName == nullptr)
+            return 0;
+        bool bSmall = false;
+        bool bLarge = false;
+        for (int i = 0; szName[i] != '\0'; ++i) {
+            if (szName[i] != '_')
+                continue;
+            if (__builtin_strncmp(szName + i, "_extralarge", 11) == 0 ||
+                __builtin_strncmp(szName + i, "_large", 6) == 0)
+                bLarge = true;
+            else if (__builtin_strncmp(szName + i, "_small", 6) == 0)
+                bSmall = true;
+        }
+        if (bLarge)
+            return 2;
+        if (bSmall)
+            return 1;
+        return 0;
+    }
+
     inline auto MapDensityFor(s32 sno) -> int {
         for (int k = 0; k < s_nMapDensity; ++k)
             if (s_arMapDensity[k].sno == sno)
                 return s_arMapDensity[k].nMul;
         return 0;   // no override
+    }
+
+    // d3hack-custom: the single answer to "how dense is THIS floor", in precedence order.
+    //
+    //   1. a MapDensityOverrides entry naming this map   -- most specific, always wins
+    //   2. the size class value, if set                  -- "all the small maps"
+    //   3. GreaterRiftDensityMultiplier                  -- the blanket rift value
+    //
+    // Both the rift-floor multiplier and the non-rift spawner read this, so the two can never
+    // disagree about a map. Returns the label too, because a density line that does not say
+    // WHICH rule applied is the line that made this feature look broken for three days.
+    inline auto RiftDensityFor(s32 sno, const char **pszWhy) -> int {
+        const int nExplicit = MapDensityFor(sno);
+        if (nExplicit > 0) {
+            if (pszWhy != nullptr)
+                *pszWhy = "PER-MAP";
+            return nExplicit;
+        }
+        int         nClass = 0;
+        const char *szWhy  = "rift";
+        switch (RiftMapSizeClass(sno)) {
+            case 1:
+                nClass = global_config.rare_cheats.rift_density_small;
+                szWhy  = "small";
+                break;
+            case 2:
+                nClass = global_config.rare_cheats.rift_density_large;
+                szWhy  = "large";
+                break;
+            default:
+                nClass = global_config.rare_cheats.rift_density_normal;
+                szWhy  = "normal";
+                break;
+        }
+        if (nClass > 0) {
+            if (pszWhy != nullptr)
+                *pszWhy = szWhy;
+            return nClass;
+        }
+        if (pszWhy != nullptr)
+            *pszWhy = "rift";
+        return global_config.rare_cheats.gr_density_multiplier;
     }
 
     // d3hack-custom: the whitelist wins when present, otherwise fall back to the ban list.
@@ -5776,9 +5854,8 @@ namespace d3 {
             if (nFirst == 0)
                 return nFirst;          // the caller stops on 0; do not multiply a failure
 
-            int nMul = MapDensityFor(s_snoAssignedMap);
-            if (nMul <= 0)
-                nMul = global_config.rare_cheats.gr_density_multiplier;
+            const char *szWhy = "rift";
+            const int   nMul  = RiftDensityFor(s_snoAssignedMap, &szWhy);
             if (nMul <= 1)
                 return nFirst;
 
@@ -5806,11 +5883,11 @@ namespace d3 {
             static int s_nLog = 0;
             if (s_nLog < 4) {
                 ++s_nLog;
-                PRINT("[d3hack-riftdens] map=%d \"%s\": x%d per accepted entry (%d extra so "
-                      "far this floor)", s_snoAssignedMap,
+                PRINT("[d3hack-riftdens] map=%d \"%s\": x%d (%s) per accepted entry (%d extra "
+                      "so far this floor)", s_snoAssignedMap,
                       (RiftMapName(s_snoAssignedMap) != nullptr)
                           ? RiftMapName(s_snoAssignedMap) : "-",
-                      nMul, s_nRiftDensExtra)
+                      nMul, szWhy, s_nRiftDensExtra)
             }
             return nFirst;
         }
