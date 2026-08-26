@@ -5594,6 +5594,15 @@ namespace d3 {
     inline int  s_nRiftSpawnFrom                 = 0;
     inline int  s_nRiftSpawnCalls                = 0;
 
+    // Separate from the shared s_arChainSeen that WalkStackOnce uses, so this probe cannot
+    // exhaust another one's budget or be silenced by it.
+    inline constexpr int kRiftChainMax = 16;
+
+    inline u64 s_arRiftChainSeen[kRiftChainMax] = {};
+    inline int s_nRiftChainSeen                 = 0;
+    inline s32 s_snoRiftSpawnFloor              = 0;
+    inline int s_nRiftSpawnFloorN               = 0;
+
     HOOK_DEFINE_INLINE(ActorSpawnWellToPool) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             const uintptr_t uParams = static_cast<uintptr_t>(ctx->X[0]);
@@ -5627,6 +5636,40 @@ namespace d3 {
                     if ((s_nRiftSpawnCalls % 250) == 0)
                         PRINT("[d3hack-riftspawn] %d spawns on rift floors so far, %d distinct "
                               "callers", s_nRiftSpawnCalls, s_nRiftSpawnFrom)
+
+                    // WHOLE CHAIN, not just the immediate caller.
+                    //
+                    // The immediate callers turned out to be generic actor-create wrappers
+                    // (0x87432C, 0x876B90, 0x876CE0) whose own dispatcher, 0x6FB230, has
+                    // ZERO BL references -- it is reached through a function pointer. Static
+                    // tracing up the chain is therefore blocked, and the only way to see who
+                    // decides HOW MANY monsters a rift floor gets is to read the live stack.
+                    //
+                    // Restricted to the first 150 spawns of each floor. 21,000 spawns were
+                    // logged in one session and the overwhelming majority are combat -- 
+                    // projectiles, summons, effects. Floor POPULATION is what matters and it
+                    // happens first, so the window is the filter.
+                    if (s_snoAssignedMap != s_snoRiftSpawnFloor) {
+                        s_snoRiftSpawnFloor = s_snoAssignedMap;
+                        s_nRiftSpawnFloorN  = 0;
+                        s_nRiftChainSeen    = 0;
+                    }
+                    if (++s_nRiftSpawnFloorN <= 150 && s_nRiftChainSeen < kRiftChainMax) {
+                        const u64 h = StackChainHash(static_cast<uintptr_t>(ctx->X[29]), 14);
+                        bool      bNewChain = true;
+                        for (int i = 0; i < s_nRiftChainSeen; ++i)
+                            if (s_arRiftChainSeen[i] == h)
+                                bNewChain = false;
+                        if (bNewChain) {
+                            s_arRiftChainSeen[s_nRiftChainSeen++] = h;
+                            PRINT("[d3hack-riftspawn] chain for sno=%d (spawn %d of floor "
+                                  "map=%d), immediate caller +0x%lX:",
+                                  *pSno, s_nRiftSpawnFloorN, s_snoAssignedMap, uFrom)
+                            // X[29] is still the CALLER's frame pointer: this hook sits on the
+                            // funnel's first instruction, before its prologue runs.
+                            WalkStack("riftspawn", static_cast<uintptr_t>(ctx->X[29]));
+                        }
+                    }
                 }
             }
 
