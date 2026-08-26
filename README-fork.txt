@@ -623,6 +623,44 @@ NEW FEATURES
     AllowedRiftMaps = "..." makes everything else a candidate for
     replacement. One entry is a perfectly valid setting.
 
+    !! READ THIS BEFORE YOU WRITE A BIG BAN LIST !!
+
+    Greater Rifts draw from a SMALLER set of maps than Nephalem rifts, and
+    a map can only be substituted IN if it is one the Greater Rift engine
+    actually rolls. The reason is that each floor carries a tile budget
+    belonging to its map, and swapping a tileset while keeping the old
+    map's budget is what used to drop people into floors they could not
+    walk out of. Those budgets are learned from real rifts and kept in
+    rift-map-gr-floats.txt beside this file; the mod refuses to swap in
+    any map it has no budget for rather than guess one.
+
+    That file ships with 42 maps already in it, so bans work from your
+    first rift. It grows on its own as you play.
+
+    What this means in practice:
+
+      * Naming maps in PreferredRiftMaps that Greater Rifts never use --
+        Battlefields of Eternity, Festering Woods, the Highlands, the
+        Wilderness, plain Tristram Fields -- will not work, and cannot
+        start working, because the game never rolls them there. Those are
+        Nephalem rift tilesets.
+
+      * If you ban nearly everything, check the log once. D3Debug.txt
+        beside config.toml says one of:
+
+            substitution ready: N eligible, M usable now ...
+            SUBSTITUTION NOT READY: N eligible, 0 with known floats ...
+            SUBSTITUTION CANNOT WORK: every map is banned ...
+
+        The line appears every time you load into a world, before you open
+        a rift. If it says NOT READY, the maps you left eligible are ones
+        the game has not rolled yet -- it also lists them by name.
+
+      * These four settings belong to the [rare_cheats] section of
+        config.toml. Sections are in alphabetical order, so pasting them
+        at the BOTTOM of the file puts them under [seasons], where they
+        are ignored without any error.
+
   * Empowered Greater Rifts grant more gem upgrade attempts. Stock is
     three from completing plus one for empowering; this sets the total.
         EmpoweredGemUpgrades = 10

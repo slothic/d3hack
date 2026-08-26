@@ -449,6 +449,10 @@ namespace {
             t.insert("CubeAugmentGemRankCap", config.rare_cheats.cube_augment_gem_rank);
             t.insert("AltarChallengeRiftCacheAshes", config.rare_cheats.altar_crc_ashes);
             t.insert("DisabledMonsterAffixes", config.rare_cheats.disabled_monster_affixes);
+            t.insert("MomentumAutoFireEvery", config.rare_cheats.momentum_autofire_every);
+            t.insert("MomentumDurationPercent", config.rare_cheats.momentum_duration_pct);
+            t.insert("MomentumNoDecay", config.rare_cheats.momentum_no_decay);
+            t.insert("BuffStackProbe", config.rare_cheats.buff_stack_probe);
             t.insert("RiftRewardProbe", config.rare_cheats.rift_reward_probe);
             t.insert("EmpoweredGemUpgrades", config.rare_cheats.empowered_gem_upgrades);
             t.insert("SetBonusAnyWeapon", config.rare_cheats.set_bonus_any_weapon);
@@ -660,6 +664,10 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         rare_cheats.cube_augment_gem_rank   = ReadI32(*section, {"CubeAugmentGemRankCap"}, rare_cheats.cube_augment_gem_rank, 1, 65535);
         rare_cheats.altar_crc_ashes         = ReadI32(*section, {"AltarChallengeRiftCacheAshes"}, rare_cheats.altar_crc_ashes, 0, 65535);
         rare_cheats.disabled_monster_affixes = ReadString(*section, {"DisabledMonsterAffixes"}, rare_cheats.disabled_monster_affixes);
+        rare_cheats.momentum_autofire_every  = ReadI32(*section, {"MomentumAutoFireEvery"}, rare_cheats.momentum_autofire_every, 0, 240);
+        rare_cheats.momentum_duration_pct    = ReadI32(*section, {"MomentumDurationPercent"}, rare_cheats.momentum_duration_pct, 100, 10000);
+        rare_cheats.momentum_no_decay        = ReadBool(*section, {"MomentumNoDecay"}, rare_cheats.momentum_no_decay);
+        rare_cheats.buff_stack_probe         = ReadBool(*section, {"BuffStackProbe"}, rare_cheats.buff_stack_probe);
         rare_cheats.rift_reward_probe        = ReadBool(*section, {"RiftRewardProbe"}, rare_cheats.rift_reward_probe);
         rare_cheats.empowered_gem_upgrades   = ReadI32(*section, {"EmpoweredGemUpgrades"}, rare_cheats.empowered_gem_upgrades, 0, 100);
         rare_cheats.set_bonus_any_weapon     = ReadBool(*section, {"SetBonusAnyWeapon"}, rare_cheats.set_bonus_any_weapon);

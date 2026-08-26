@@ -264,6 +264,7 @@ namespace d3 {
             d3::NameSnoList();                 // d3hack-custom
             d3::MapFloatsLoadIfNeeded();       // d3hack-custom: file I/O on THIS thread only
             d3::MapFloatsFlush();              // d3hack-custom: never from world-gen
+            d3::ReportSubstitutionReadiness(); // d3hack-custom: say up front if the config can work
             d3::DumpMonsterAffixes();          // d3hack-custom
             d3::DisableMonsterAffixes();       // d3hack-custom
             d3::DumpRiftTables();              // d3hack-custom

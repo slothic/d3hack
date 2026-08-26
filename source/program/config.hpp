@@ -168,6 +168,10 @@ struct PatchConfig {
         bool   easy_kill_damage        = false;
         bool   infinite_mp             = true;
         bool   cube_no_consume         = false;
+        int    momentum_autofire_every = 0;    // d3hack-custom: EXPERIMENTAL. Gears of Dreadlands auto-fires your last primary while strafing, but that shot never reaches the hit path that grants Momentum, so stacks bleed away. This re-invokes the grant path with the primary's power SNO every Nth Strafe tick (0 = off). 8 is a sensible starting value.
+        int    momentum_duration_pct   = 100;  // d3hack-custom: Gears of Dreadlands Momentum buff duration, percent of stock (100 = off). Stacks drain as the buff's timer runs out, so lengthening the timer is what stops them falling off while you strafe. 100..10000.
+        bool   momentum_no_decay       = false;// d3hack-custom: Gears of Dreadlands Momentum stacks stop decaying. They still build normally and still clear when the buff ends; they just never tick back down while it is active, so strafing does not bleed them away.
+        bool   buff_stack_probe        = false;// d3hack-custom: TEMPORARY. Logs every write to the buff STACK counters (BUFF_ICON_COUNT0..11, 0x2FF..0x30A) with the buff's power SNO, the value and the caller, on BOTH the int and float setters. Finds where a stacking set buff (Gears of Dreadlands Momentum) is granted. This hooks a hot function -- turn it OFF when done.
         bool   rift_reward_probe       = false;// d3hack-custom: log every TIERED_LOOT_RUN_* attribute read (0x570..0x59F) with its value and the CALLER, so the attribute Urshi's gem-upgrade count actually comes from can be identified by observation instead of by a name that looks right.
         int    empowered_gem_upgrades  = 0;    // d3hack-custom: gem-upgrade attempts an EMPOWERED greater rift grants (0 = stock). Applied as a FLOOR and only when the game already granted at least one, so a non-empowered rift -- which grants zero -- stays at zero and the empowerment gate keeps working.
         bool   gem_upgrade_always      = false;

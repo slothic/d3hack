@@ -1,0 +1,406 @@
+D3Hack -- Greater / Nephalem Rift map list
+==============================================================================
+
+164 maps in 62 families.
+
+Turn on MapNameOverlay and the game names each floor's map on screen as you
+enter it. When one annoys you, find it here and add its internal name to:
+
+    [rare_cheats]
+    BannedRiftMaps = "x1_lr_tileset_hexmaze, x1_lr_tileset_sewers"
+
+Each SNO bans separately, so you can ban small Graveyard and keep the large one.
+A name that matches nothing is reported in the log, so typos are visible.
+
+SHAPE is the column that usually decides it:
+    OPEN      wide, easy to group packs and cover ground
+    open      reasonably open
+    corridor  hallways, single-file pulls
+    cave      tight winding tunnels, the worst for grouping
+    MAZE      actively maze-like, easy to get lost in
+
+The in-game names are identified from the asset names and the zones they come
+from -- they are a guide, not an official table. The overlay is the authority:
+if a floor looks nothing like the description here, trust your eyes.
+
+==============================================================================
+
+------------------------------------------------------------------------------
+ MAZE -- usually the first to go
+------------------------------------------------------------------------------
+
+Hexagonal maze (Zoltun Kulle)
+    Repeating hex corridors -- very maze-like
+        x1_lr_tileset_hexmaze                                331389  normal
+        x1_lr_tileset_hexmaze_large                          360736  large
+        x1_lr_tileset_hexmaze_small                          360737  small
+
+Archives of Zoltun Kulle
+    Sand and Horadric stone -- 'Horadrim Sand Maze'
+        x1_lr_tileset_zoltarchives                           275945  normal
+        x1_lr_tileset_zoltarchives_small                     327864  small
+        x1_lr_tileset_zoltarchives_large                     336137  large
+
+
+------------------------------------------------------------------------------
+ CAVES -- tight winding tunnels
+------------------------------------------------------------------------------
+
+Swamp caves (Act V)
+    Muddy cave, roots
+        x1_lr_tileset_bogcave                                331385  normal
+        x1_lr_tileset_bogcave_large                          360768  large
+        x1_lr_tileset_bogcave_small                          360769  small
+
+Flooded cave
+    Waterlogged cavern
+        x1_lr_tileset_floodedcave                            275947  normal
+        x1_lr_tileset_floodedcave_large                      336064  large
+        x1_lr_tileset_floodedcave_small                      336148  small
+
+Coastal cave
+    Sea cave
+        p4_lr_tileset_forest_coast_cave                      443996  normal
+        p4_lr_tileset_forest_coast_cave_large                443999  large
+        p4_lr_tileset_forest_coast_cave_small                444000  small
+
+Icefall Caves
+    Blue ice cavern
+        x1_lr_tileset_icecave                                275960  normal
+        x1_lr_tileset_icecave_large                          336068  large
+        x1_lr_tileset_icecave_small                          336149  small
+
+Cave of the Moon Clan / root cave
+    Roots and dirt tunnels
+        x1_lr_tileset_rootcave                               275943  normal
+        x1_lr_tileset_rootcave_large                         336085  large
+        x1_lr_tileset_rootcave_small                         336242  small
+
+Spider Caverns
+    Webs, egg sacs
+        x1_lr_tileset_spidercaves                            322726  normal
+        x1_lr_tileset_spidercaves_large                      336096  large
+        x1_lr_tileset_spidercaves_small                      336246  small
+
+Sand worm tunnels
+    Dusty burrow tunnels
+        x1_lr_tileset_wormcaves                              275944  normal
+        x1_lr_tileset_wormcaves_large                        336104  large
+        x1_lr_tileset_wormcaves_small                        337001  small
+
+
+------------------------------------------------------------------------------
+ CORRIDORS -- hallways, single-file pulls
+------------------------------------------------------------------------------
+
+Halls of Agony / Butcher's lair
+    Blood, meat hooks, torchlit stone
+        x1_lr_tileset_abattoir                               331384  normal
+        x1_lr_tileset_abattoir_large                         360811  large
+        x1_lr_tileset_abattoir_small                         360812  small
+
+Cave of the Betrayer / Aqueducts
+    Wet stone channels, water
+        x1_lr_tileset_aqueducts                              322710  normal
+        x1_lr_tileset_aqueducts_small                        333443  small
+        x1_lr_tileset_aqueducts_large                        335192  large
+
+Halls of Agony catacombs
+    Bone walls, cramped crypt
+        x1_lr_tileset_catacombs                              331388  normal
+        x1_lr_tileset_catacombs_large                        360756  large
+        x1_lr_tileset_catacombs_small                        360757  small
+
+Cathedral (Act I)
+    Leoric's cathedral, pews and pillars
+        x1_lr_tileset_cath                                   275921  normal
+        x1_lr_tileset_cath_large                             324418  large
+        x1_lr_tileset_cath_small                             324425  small
+        x1_lr_tileset_cath_extralarge                        328037  extra large
+
+Cesspools (Act V)
+    Sewer filth, green water
+        p1_lr_tileset_cesspools_small                        389322  small
+        p1_lr_tileset_cesspools_large                        389323  large
+
+Church / chapel interior
+    Small stone chapel
+        px_lr_tileset_church_small                           462861  small
+        px_lr_tileset_church                                 462957  normal
+
+Defiled Crypts (Act I)
+    Small tombs, coffins
+        x1_lr_tileset_crypt                                  275946  normal
+        x1_lr_tileset_crypt_small                            327768  small
+        x1_lr_tileset_crypt_large                            335922  large
+
+Cow event crypt
+    Crypt, but cows
+        x1_lr_tileset_crypt_small_udderchaos                 373812  small
+
+Cow event crypt
+    Crypt, but cows
+        x1_lr_tileset_event_crypt_udderchaos                 366326  normal
+
+Bastion's Keep ramparts
+    Castle walls, siege
+        x1_lr_tileset_exterior_ramparts1                     351261  normal
+        x1_lr_tileset_exterior_ramparts2                     351269  normal
+        x1_lr_tileset_exterior_ramparts3                     351270  normal
+
+Ramparts, damaged
+    Broken castle walls
+        x1_lr_tileset_exterior_rampartsdamaged1              351271  normal
+        x1_lr_tileset_exterior_rampartsdamaged2              351272  normal
+        x1_lr_tileset_exterior_rampartsdamaged3              351273  normal
+
+Pandemonium Fortress
+    Demonic fortress -- 'Malthael Maze'
+        x1_lr_tileset_fortress                               331387  normal
+        x1_lr_tileset_fortress_small                         360796  small
+        x1_lr_tileset_fortress_large                         360797  large
+
+Hell Rift A
+    Hell portal, fire and bone
+        x1_lr_tileset_hellportala_small                      362178  small
+
+Hell Rift B
+    Hell portal, fire and bone
+        x1_lr_tileset_hellportalb_small                      362187  small
+
+Interior GRift: Desert
+    Enclosed desert set
+        p43_lr_tileset_interiorgrift_desert                  453211  normal
+        p43_lr_tileset_interiorgrift_desert_gg               486855  normal, GG
+
+Interior GRift: Festering Woods
+    Enclosed woods set
+        p43_lr_tileset_interiorgrift_festeringwoodsdrlg      453213  normal
+        p43_lr_tileset_interiorgrift_festeringwoodsdrlg_gg   486856  normal, GG
+
+Interior GRift: Coastal Forest
+    Enclosed coast set
+        p43_lr_tileset_interiorgrift_forest_coast            453214  normal
+
+Interior GRift: Snowy Forest
+    Enclosed snow set
+        p43_lr_tileset_interiorgrift_forest_snow             453210  normal
+
+Interior GRift: Moors
+    Enclosed moor set
+        p6_lr_tileset_interiorgrift_moors                    465376  normal
+        p6_lr_tileset_interiorgrift_moors_gg                 486858  normal, GG
+
+Interior GRift: Pandemonium
+    Enclosed Pandemonium set
+        p43_lr_tileset_interiorgrift_pandext                 453212  normal
+        p43_lr_tileset_interiorgrift_pandext_gg              486857  normal, GG
+
+Keep Depths -- forge
+    Dark keep interior, forges
+        x1_lr_tileset_keep_forge                             322662  normal
+        x1_lr_tileset_keep_forge_large                       336073  large
+        x1_lr_tileset_keep_forge_small                       336234  small
+
+Keep Depths -- river
+    Dark keep interior, water
+        x1_lr_tileset_keep_river                             322663  normal
+        x1_lr_tileset_keep_river_large                       336077  large
+        x1_lr_tileset_keep_river_small                       336239  small
+
+Keep Depths -- war
+    Dark keep interior, war camp
+        x1_lr_tileset_keep_war                               322661  normal
+        x1_lr_tileset_keep_war_large                         336078  large
+        x1_lr_tileset_keep_war_small                         336240  small
+
+Leoric's Manor
+    Manor halls -- 'Halls of Agony'
+        x1_lr_tileset_leorics                                275930  normal
+        x1_lr_tileset_leorics_small                          327401  small
+        x1_lr_tileset_leorics_large                          336083  large
+
+Sewers of Caldeum
+    Tight brick sewer tunnels
+        x1_lr_tileset_sewers                                 288843  normal
+        x1_lr_tileset_sewers_large                           336086  large
+        x1_lr_tileset_sewers_small                           336244  small
+
+Westmarch streets
+    City streets and buildings
+        x1_lr_tileset_westmarch                              331263  normal
+        x1_lr_tileset_westmarch_small                        360815  small
+        x1_lr_tileset_westmarch_large                        360816  large
+
+Westmarch, burning
+    Same, on fire
+        x1_lr_tileset_westmarchfire                          360823  normal
+        x1_lr_tileset_westmarchfire_small                    360835  small
+        x1_lr_tileset_westmarchfire_large                    360836  large
+
+
+------------------------------------------------------------------------------
+ WIDE OPEN -- generally the good ones
+------------------------------------------------------------------------------
+
+Battlefields of Eternity
+    Vast bone battlefield, very open
+        px_lr_tileset_exterior_battlefieldsdrlg              432563  normal
+        px_lr_tileset_exterior_battlefieldsdrlg_large        432689  large
+        px_lr_tileset_exterior_battlefieldsdrlg_small        432696  small
+
+Bone fields (Act V)
+    Open bone plain
+        x1_lr_tileset_exterior_boneyards                     349173  normal
+        x1_lr_tileset_exterior_boneyards_large               364533  large
+        x1_lr_tileset_exterior_boneyards_gg                  486860  normal, GG
+
+Festering Woods
+    Dark forest, standing stones
+        px_lr_tileset_exterior_festeringwoodsdrlg_large      414971  large
+        px_lr_tileset_exterior_festeringwoodsdrlg            415352  normal
+        px_lr_tileset_exterior_festeringwoodsdrlg_small      415354  small
+
+Southern Highlands
+    Grassy hills, cliffs
+        x1_lr_tileset_exterior_highlands                     347368  normal
+
+Fields of Misery
+    Farmland, fences, huts
+        x1_lr_tileset_exterior_tristramfields                330465  normal
+
+Fields of Misery (rift variant)
+    Farmland, fences, huts
+        px_lr_tileset_exterior_tristramfieldsdrlg            414834  normal
+        px_lr_tileset_exterior_tristramfieldsdrlg_small      414848  small
+        px_lr_tileset_exterior_tristramfieldsdrlg_large      414849  large
+        px_lr_tileset_exterior_tristramfieldsdrlg_small_gg   486859  small, GG
+        px_lr_tileset_exterior_tristramfieldsdrlg_small_gr   487126  small, GR
+
+Northern Highlands
+    Open grassland
+        x1_lr_tileset_exterior_wilderness                    346912  normal
+
+
+------------------------------------------------------------------------------
+ REASONABLY OPEN
+------------------------------------------------------------------------------
+
+Wortham, ruined
+    Burnt village, rubble
+        x1_lr_tileset_breakup_wortham                        348606  normal
+
+Silver Spire, corrupted
+    Angelic spire gone wrong, purple
+        x1_lr_tileset_corruptspire                           275926  normal
+        x1_lr_tileset_corruptspire_large                     335410  large
+        x1_lr_tileset_corruptspire_small                     336143  small
+
+Arreat Crater
+    Volcanic rock, lava
+        x1_lr_tileset_crater                                 323565  normal
+        x1_lr_tileset_crater_small                           335992  small
+
+Arreat Crater towers
+    Demon towers on lava
+        x1_lr_tileset_cratertowers1_small                    350309  small
+        x1_lr_tileset_cratertowers2_small                    350310  small
+        x1_lr_tileset_cratertowers3_small                    350311  small
+        x1_lr_tileset_cratertowers4_small                    350312  small
+        x1_lr_tileset_cratertowers5_small                    350313  small
+        x1_lr_tileset_cratertowers6_small                    350314  small
+        x1_lr_tileset_cratertowers7_small                    350315  small
+
+Blood Marsh / bog (Act V)
+    Swamp, dead trees
+        x1_lr_tileset_exterior_bog                           332284  normal
+        x1_lr_tileset_exterior_bog_small                     363998  small
+        x1_lr_tileset_exterior_bog_large                     364392  large
+
+Dahlgur Oasis / desert
+    Sand, palms, ruins
+        px_lr_tileset_exterior_desert                        415309  normal
+        px_lr_tileset_exterior_desert_large                  415310  large
+        px_lr_tileset_exterior_desert_small                  415311  small
+
+Forest (Act II patch zone)
+    Green woodland
+        p4_lr_tileset_exterior_forest                        442959  normal
+        p4_lr_tileset_exterior_forest_large                  443550  large
+        p4_lr_tileset_exterior_forest_small                  443551  small
+
+Snowy forest
+    Pine forest under snow
+        p4_lr_tileset_exterior_forest_snow                   443834  normal
+        p4_lr_tileset_exterior_forest_snow_small             443894  small
+        p4_lr_tileset_exterior_forest_snow_large             443895  large
+
+Gardens of Hope
+    Heaven, white stone and hedges
+        x1_lr_tileset_exterior_gardensofhope1                347749  normal
+        x1_lr_tileset_exterior_gardensofhope2                347750  normal
+        x1_lr_tileset_exterior_gardensofhope3                347751  normal
+
+Weeping Hollow graveyard
+    Headstones, fog, fences
+        x1_lr_tileset_exterior_graveyard                     347861  normal
+        x1_lr_tileset_exterior_graveyard_small               363977  small
+        x1_lr_tileset_exterior_graveyard_large               364391  large
+        x1_lr_tileset_exterior_graveyard_small_gg            486861  small, GG
+        x1_lr_tileset_exterior_graveyard_small_gr            487223  small, GR
+
+Leoric's courtyard / jail exterior
+    Manor grounds at night
+        px_lr_tileset_exterior_leoricsjail                   409802  normal
+        px_lr_tileset_exterior_leoricsjail_small             409803  small
+        px_lr_tileset_exterior_leoricsjail_large             409804  large
+
+The Moors
+    Bleak wet moorland
+        px_lr_tileset_exterior_moors_small                   458829  small
+        px_lr_tileset_exterior_moors                         462958  normal
+
+Dahlgur Oasis
+    Water, reeds, sand
+        px_lr_tileset_exterior_oasisdrlg                     409626  normal
+        px_lr_tileset_exterior_oasisdrlg_small               409777  small
+        px_lr_tileset_exterior_oasisdrlg_large               409779  large
+
+Pandemonium exterior
+    Red demonic wastes -- 'Malthael Maze'
+        x1_lr_tileset_exterior_pandext                       347903  normal
+        x1_lr_tileset_exterior_pandext_small                 364270  small
+        x1_lr_tileset_exterior_pandext_large                 364271  large
+
+Pandemonium Fortress islands
+    Floating fortress platforms
+        x1_lr_tileset_fortressislands                        362155  normal
+        x1_lr_tileset_fortressislands_small                  362175  small
+
+Whimsyshire
+    Rainbows, teddy bears, unicorns
+        x1_lr_tileset_pony                                   343942  normal
+        x1_lr_tileset_pony_large                             343943  large
+        x1_lr_tileset_pony_small                             343944  small
+
+Frozen ruins
+    Snow-covered stonework
+        p4_lr_tileset_ruins_frost                            436403  normal
+        p4_lr_tileset_ruins_frost_small                      442934  small
+        p4_lr_tileset_ruins_frost_large                      442938  large
+
+Ruins of Corvus / Kulle ruins
+    Sandstone ruins
+        x1_lr_tileset_zoltruins                              288823  normal
+        x1_lr_tileset_zoltruins_large                        336139  large
+        x1_lr_tileset_zoltruins_small                        337003  small
+
+
+------------------------------------------------------------------------------
+ SHOULD NOT APPEAR
+------------------------------------------------------------------------------
+
+DEV TEST MAP
+    Should never appear in play -- ban it
+        x1_lr_tileset_monster_prototypes                     429679  normal
+

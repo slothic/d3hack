@@ -1928,10 +1928,19 @@ namespace d3 {
         float ar[3];
     };
 
-    inline MapFloats s_arMapFloats[96] = {};
+    inline MapFloats s_arMapFloats[192] = {};   // 164 rift maps exist; never silently cap
     inline int       s_nMapFloats      = 0;
 
-    inline constexpr const char *kMapFloatPath = "sd:/config/d3hack-nx/rift-map-floats.txt";
+    // The filename changed from rift-map-floats.txt deliberately. Every file written before
+    // 2026-08-26 mixes Greater Rift floats with Nephalem rift floats, because the learn pass
+    // below had no rift-type gate. Measured on a 60-map cache: the 42 maps that had also been
+    // SEEN in a GR floor all carry GR-shaped values (f0 0.45..1.18 varied, f2 in {1,2,3}); the
+    // other 18 all carry f0==f1==f2 in {2,3,4,6,8,10} and NOT ONE of them has ever appeared in
+    // a GR. Perfect separation across 60 samples. Those 18 are Nephalem budgets, and feeding
+    // one to a GR floor is exactly the "swapped the tileset, kept the wrong budget" mistake
+    // that produced four unleavable floors. Renaming is the migration: the old file is simply
+    // never read again.
+    inline constexpr const char *kMapFloatPath = "sd:/config/d3hack-nx/rift-map-gr-floats.txt";
     inline bool                  s_bMapFloatsDirty  = false;
     inline bool                  s_bMapFloatsLoaded = false;
 
@@ -1941,8 +1950,15 @@ namespace d3 {
         for (int k = 0; k < s_nMapFloats; ++k)
             if (s_arMapFloats[k].sno == sno)
                 return;
-        if (s_nMapFloats >= static_cast<int>(sizeof(s_arMapFloats) / sizeof(s_arMapFloats[0])))
+        if (s_nMapFloats >= static_cast<int>(sizeof(s_arMapFloats) / sizeof(s_arMapFloats[0]))) {
+            static bool s_bWarned = false;
+            if (!s_bWarned) {
+                s_bWarned = true;
+                PRINT("[d3hack-plan] float cache FULL at %d maps -- further maps are dropped. "
+                      "Raise s_arMapFloats.", s_nMapFloats)
+            }
             return;
+        }
         s_arMapFloats[s_nMapFloats].sno = sno;
         for (int i = 0; i < 3; ++i)
             s_arMapFloats[s_nMapFloats].ar[i] = pf[i];
@@ -1995,18 +2011,37 @@ namespace d3 {
             return;   // no file yet is the normal first-run case, not an error
 
         s64 size = 0;
-        if (R_SUCCEEDED(nn::fs::GetFileSize(&size, fh)) && size > 0 && size < 8192) {
-            char buf[8192] {};
+        if (R_SUCCEEDED(nn::fs::GetFileSize(&size, fh)) && size > 0 && size < 32768) {
+            char buf[32768] {};
             if (R_SUCCEEDED(nn::fs::ReadFile(fh, 0, buf, static_cast<u64>(size)))) {
                 const int n = static_cast<int>(size);
                 int       i = 0;
                 while (i < n) {
+                    // '#' comments, so the shipped seed file can say what it is. The scanner
+                    // below hunts digit runs and would happily read a year out of a comment,
+                    // which is why the file could not be annotated before.
+                    while (i < n) {
+                        while (i < n && (buf[i] == ' ' || buf[i] == '\t' || buf[i] == '\r' ||
+                                         buf[i] == '\n'))
+                            ++i;
+                        if (i < n && buf[i] == '#') {
+                            while (i < n && buf[i] != '\n')
+                                ++i;
+                            continue;
+                        }
+                        break;
+                    }
+                    if (i >= n)
+                        break;
                     u32 arVal[4] = {0, 0, 0, 0};
                     int nGot     = 0;
                     for (; nGot < 4 && i < n; ++nGot) {
-                        while (i < n && (buf[i] < '0' || buf[i] > '9'))
+                        // Stop at a newline OR a '#': a trailing comment must never be
+                        // mined for digits, and the map names in one are full of them.
+                        while (i < n && buf[i] != '\n' && buf[i] != '#' &&
+                               (buf[i] < '0' || buf[i] > '9'))
                             ++i;
-                        if (i >= n)
+                        if (i >= n || buf[i] == '\n' || buf[i] == '#')
                             break;
                         u32 v = 0;
                         while (i < n && buf[i] >= '0' && buf[i] <= '9') {
@@ -2015,8 +2050,16 @@ namespace d3 {
                         }
                         arVal[nGot] = v;
                     }
-                    if (nGot < 4)
-                        break;
+                    if (nGot < 4) {
+                        // A short line is a damaged record, not the end of the file. Skip it
+                        // and keep going -- bailing out here would silently drop every map
+                        // after the first bad line.
+                        if (i >= n)
+                            break;
+                        while (i < n && buf[i] != '\n')
+                            ++i;
+                        continue;
+                    }
                     const float arF[3] = {U2F(arVal[1]), U2F(arVal[2]), U2F(arVal[3])};
                     NoteMapFloats(static_cast<s32>(arVal[0]), arF);
                 }
@@ -2038,7 +2081,7 @@ namespace d3 {
     inline void MapFloatsSave() {
         if (!s_bMapFloatsDirty || s_nMapFloats <= 0)
             return;
-        char buf[8192];
+        char buf[32768];
         int  len = 0;
         for (int k = 0; k < s_nMapFloats && len < static_cast<int>(sizeof(buf)) - 64; ++k) {
             len += ::snprintf(buf + len, sizeof(buf) - static_cast<size_t>(len),
@@ -2720,6 +2763,49 @@ namespace d3 {
     // frame and [x29+8] is its return address. Walking that chain gives every caller at once.
     // Each step is validated -- frame pointers must increase, stay 16-aligned and stay in the
     // same region -- so a leaf function without a frame stops the walk instead of wandering.
+    // d3hack-custom: walk, but only PRINT chains we have not seen before.
+    //
+    // A flat "first N walks" budget keeps getting spent by world setup before combat starts --
+    // three times now on the Momentum hunt. Deduping on the chain itself fixes that properly:
+    // the setup chains print once each, and any genuinely new chain (a combat hit, an
+    // auto-fired primary) is still new and still prints.
+    inline void WalkStack(const char *szWhat, uintptr_t uFp);
+
+    inline auto StackChainHash(uintptr_t uFp, int nMax) -> u64 {
+        const uintptr_t uBase = GameOffset(0);
+        u64             h     = 1469598103934665603ull;
+        uintptr_t       uPrev = 0;
+        for (int k = 0; k < nMax; ++k) {
+            if (uFp <= uPrev || (uFp & 15ull) != 0ull || uFp < 0x1000ull)
+                break;
+            if (uPrev != 0 && (uFp - uPrev) > 0x100000ull)
+                break;
+            const uintptr_t uNext = *reinterpret_cast<const uintptr_t *>(uFp);
+            const uintptr_t uRet  = *reinterpret_cast<const uintptr_t *>(uFp + 8);
+            if (uRet <= uBase || (uRet - uBase) > 0x1000000ull)
+                break;
+            h ^= static_cast<u64>(uRet - uBase);
+            h *= 1099511628211ull;
+            uPrev = uFp;
+            uFp   = uNext;
+        }
+        return h;
+    }
+
+    inline u64 s_arChainSeen[24] = {};
+    inline int s_nChainSeen      = 0;
+
+    inline void WalkStackOnce(const char *szWhat, uintptr_t uFp) {
+        const u64 h = StackChainHash(uFp, 14);
+        for (int k = 0; k < s_nChainSeen; ++k)
+            if (s_arChainSeen[k] == h)
+                return;
+        if (s_nChainSeen >= 24)
+            return;
+        s_arChainSeen[s_nChainSeen++] = h;
+        WalkStack(szWhat, uFp);
+    }
+
     inline void WalkStack(const char *szWhat, uintptr_t uFp) {
         const uintptr_t uBase = GameOffset(0);
         PRINT("[d3hack-stack] --- %s ---", szWhat)
@@ -3309,6 +3395,99 @@ namespace d3 {
     //
     // Plain memory reads of a struct the game is about to read itself. No game calls, so the
     // thread does not matter -- the rule the first probe's crash established.
+    // d3hack-custom: report substitution readiness at world entry, BEFORE a rift is opened.
+    //
+    // The refusal explanation below only prints once a rift has already been rolled and
+    // refused. That is one wasted rift before the user learns anything, and if they are not
+    // reading D3Debug.txt they learn nothing at all. This line lands at every world entry, so
+    // the very first thing in the log after a boot says whether the config can work.
+    inline void ReportSubstitutionReadiness() {
+        if (!global_config.rare_cheats.rift_map_substitute)
+            return;
+        ResolveRiftBans();
+
+        int nEligible = 0;
+        int nKnown    = 0;
+        int nPrefOk   = 0;
+        for (const auto &tRow : kRiftMaps) {
+            if (!RiftMapIsAllowed(tRow.sno) || RiftMapIsBanned(tRow.sno))
+                continue;
+            ++nEligible;
+            if (MapFloatsFor(tRow.sno) == nullptr)
+                continue;
+            ++nKnown;
+            if (RiftMapIsPreferred(tRow.sno))
+                ++nPrefOk;
+        }
+
+        if (nEligible == 0) {
+            PRINT_LINE("[d3hack-plan] SUBSTITUTION CANNOT WORK: every map is banned. Remove at "
+                       "least one name from BannedRiftMaps.");
+            return;
+        }
+        if (nKnown == 0) {
+            PRINT("[d3hack-plan] SUBSTITUTION NOT READY: %d map(s) eligible, 0 with known "
+                  "floats. Nothing can be substituted in until the game rolls one of them into "
+                  "a Greater Rift plan. If your list is Nephalem-only tilesets it will never "
+                  "happen -- see rift-maps.txt.", nEligible)
+            return;
+        }
+        PRINT("[d3hack-plan] substitution ready: %d eligible, %d usable now (%d of them "
+              "preferred), %d map(s) cached", nEligible, nKnown, nPrefOk, s_nMapFloats)
+    }
+
+    // d3hack-custom: say WHY a substitution refused, in terms the config owner can act on.
+    //
+    // A replacement is only ever drawn from maps whose three plan floats are already known,
+    // and floats are learned from Greater Rift plans the game itself rolled. That makes three
+    // distinct failure states, and the old single line could not tell them apart:
+    //
+    //   1. Nothing is eligible at all -- the ban list covers every map. Fix: unban something.
+    //   2. Maps are eligible but none has known floats YET. Fix: play, or ship the seed file.
+    //   3. Maps are eligible, but they are maps the GR engine never rolls, so their floats can
+    //      never be learned from GR play. This is the one that never resolves on its own, and
+    //      it is what a preference list full of Nephalem-only tilesets looks like.
+    //
+    // Printed once per rift, next to the plan dump, so it is always beside the evidence.
+    inline void ExplainRefusal(int nRefused) {
+        int nEligible = 0;
+        int nKnown    = 0;
+        for (const auto &tRow : kRiftMaps) {
+            if (!RiftMapIsAllowed(tRow.sno) || RiftMapIsBanned(tRow.sno))
+                continue;
+            ++nEligible;
+            if (MapFloatsFor(tRow.sno) != nullptr)
+                ++nKnown;
+        }
+
+        if (nEligible == 0) {
+            PRINT("[d3hack-plan] %d floor(s) NOT swapped: EVERY map is banned. BannedRiftMaps "
+                  "covers all %d names, so there is nothing to substitute in. Unban at least "
+                  "one map.", nRefused, static_cast<int>(sizeof(kRiftMaps) / sizeof(kRiftMaps[0])))
+            return;
+        }
+
+        PRINT("[d3hack-plan] %d floor(s) NOT swapped. %d map(s) are eligible, %d of them have "
+              "known floats. A map can only be substituted IN once the game has rolled it into "
+              "a Greater Rift plan at least once.", nRefused, nEligible, nKnown)
+
+        // Name them. Capped, because an empty AllowedRiftMaps with a short ban list leaves
+        // well over a hundred and a log full of names helps nobody.
+        int nShown = 0;
+        for (const auto &tRow : kRiftMaps) {
+            if (!RiftMapIsAllowed(tRow.sno) || RiftMapIsBanned(tRow.sno))
+                continue;
+            if (MapFloatsFor(tRow.sno) != nullptr)
+                continue;
+            if (nShown >= 20) {
+                PRINT("[d3hack-plan]   ... and %d more", nEligible - nKnown - nShown)
+                break;
+            }
+            ++nShown;
+            PRINT("[d3hack-plan]   waiting on floats: %s", tRow.szName)
+        }
+    }
+
     HOOK_DEFINE_INLINE(RiftPlanDump) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             const bool bSwap = global_config.rare_cheats.rift_map_substitute;
@@ -3337,11 +3516,23 @@ namespace d3 {
             // PASS 1 -- LEARN, before touching anything. Every float recorded here came out of
             // a plan the game built itself, so a substitution can only ever reuse the game's
             // own numbers. Nothing is invented.
+            //
+            // GREATER RIFT ENTRIES ONLY -- the same four-byte "_GR_" label test the swap uses.
+            // 0x816E60 serves Nephalem rifts too, and a Nephalem plan's three floats are NOT
+            // the same quantity: measured across a 60-map cache, every map also seen in a GR
+            // carries f0 in 0.45..1.18 with f2 in {1,2,3}, while every map never seen in a GR
+            // carries f0==f1==f2 in {2,3,4,6,8,10}. Learning both into one table let the GR
+            // substitution hand a floor a Nephalem budget -- the precise failure this whole
+            // design exists to prevent.
             for (int n = 1; n <= 10; ++n) {
                 const uintptr_t uRow = uBase + static_cast<uintptr_t>(n) * 0x60ull;
                 const s32       sno  = *reinterpret_cast<const s32 *>(uRow + 0x16C);
-                if (sno > 0)
-                    NoteMapFloats(sno, reinterpret_cast<const float *>(uRow + 0x170));
+                if (sno <= 0)
+                    continue;
+                const auto *pLbl = reinterpret_cast<const char *>(uRow + 0x17C);
+                if (!(pLbl[0] == '_' && pLbl[1] == 'G' && pLbl[2] == 'R' && pLbl[3] == '_'))
+                    continue;
+                NoteMapFloats(sno, reinterpret_cast<const float *>(uRow + 0x170));
             }
 
             // PASS 2 -- SUBSTITUTE, in the plan, before a single floor exists.
@@ -3443,10 +3634,12 @@ namespace d3 {
                     PRINT("[d3hack-plan] floor %2d SWAP %d \"%s\" -> %d \"%s\" (floats carried)",
                           n, snoOld, RiftMapName(snoOld), snoNew, RiftMapName(snoNew))
                 }
+                // A refusal used to print one vague line and nothing else, which is how a
+                // user ends up reporting "the ban list does nothing" with no way to see why.
+                // There are three genuinely different reasons and they need three different
+                // fixes, so name which one this is and name the maps involved.
                 if (nRefused > 0)
-                    PRINT("[d3hack-plan] %d floor(s) NOT swapped: no allowed map with known "
-                          "floats yet. Floats are learned from plans, so this settles after a "
-                          "rift or two.", nRefused)
+                    ExplainRefusal(nRefused);
             }
 
             // PASS 3 -- report what the game will actually run.
@@ -3762,6 +3955,679 @@ namespace d3 {
     inline constexpr u64 kGemGrantMax   = 0x77BBEC;
     inline constexpr u64 kGemGrantBonus = 0x77BC94;
     inline s32           s_nGemMaxSeen  = 0;
+
+    // d3hack-custom: TEMPORARY buff-stack probe. Gears of Dreadlands "Momentum".
+    //
+    // Goal: the GoD 6pc auto-fires your last primary while strafing, but those auto-fired
+    // primaries do not grant Momentum stacks. Making them grant stacks is additive, whereas
+    // stopping the decay runs into the native timed-event wall the shrine work already hit
+    // (BUFF_ICON_END_TICK is never written through the attribute setter).
+    //
+    // Static analysis is exhausted: "Momentum" appears NOWHERE in .text/.rodata/.data (the
+    // display name lives in romfs strings), and attrxref finds ZERO references to
+    // BUFF_ICON_COUNT0..2 because the keys are computed as base+index rather than materialised
+    // as constants. So the grant site can only be found by watching the writes.
+    //
+    // !! THIS HOOKS A HOT FUNCTION. It is a diagnostic, not a feature. Turn BuffStackProbe off
+    // when the call site is known -- leaving a trampoline on the attribute setters is what
+    // produced the world-freeze regression.
+    //
+    // Both setters are covered. Watching only the int path for a float attribute is what made
+    // the Shadow's Mantle gate take seven probes; there are FOUR accessors, not two.
+    inline auto IsBuffStackAttr(s32 nAttr) -> bool {
+        // BUFF_ICON_COUNT0..11, and now the START/END tick ranges too.
+        //
+        // HANDOFF concluded "buff expiry is a native timed event, not an attribute" -- but that
+        // was measured against the ACD setters ONLY, before the id-based setter at 0x69ED90 was
+        // known. The end tick may well travel through that one. If it does, extending it keeps
+        // the buff alive, which is what Momentum actually needs: a stack grant refreshes the
+        // DURATION, and holding the count without holding the duration is exactly the shortcut
+        // that failed.
+        return (nAttr >= 0x2FF && nAttr <= 0x30A) ||   // BUFF_ICON_COUNT0..11
+               (nAttr >= 0x252 && nAttr <= 0x261) ||   // BUFF_ICON_START_TICK0..15
+               (nAttr >= 0x272 && nAttr <= 0x281);     // BUFF_ICON_END_TICK0..15
+    }
+
+    // 48 was far too small. Entering a world registers ~41 distinct buffs, each writing
+    // count=1, which filled the table before any actual STACKING happened -- so the one event
+    // this probe exists to catch was dropped. Exactly the budget mistake HANDOFF records for
+    // the shard and area-id probes: the boring case fills the log first.
+    inline constexpr int kBuffSeenMax = 256;
+    inline u64           s_arBuffSeen[kBuffSeenMax] = {};
+    inline int           s_nBuffSeen                = 0;
+
+    // count==1 is buff REGISTRATION and there is a lot of it. count>=2 is a STACK, which is the
+    // whole point, so registration gets a small quota and stacks are never rationed.
+    inline int s_nBuffReg = 0;
+
+    inline void NoteBuffStack(const char *szWhich, s32 nAttr, s64 nParam, int nVal, u64 uFrom) {
+        if (nVal <= 1 && ++s_nBuffReg > 12)
+            return;   // registration quota spent; stacks below are still logged
+        const u64 uKey = (static_cast<u64>(nAttr) << 48) ^ (static_cast<u64>(nParam) << 20) ^
+                         (static_cast<u64>(static_cast<u32>(nVal)) << 8) ^ uFrom;
+        for (int k = 0; k < s_nBuffSeen; ++k)
+            if (s_arBuffSeen[k] == uKey)
+                return;
+        if (s_nBuffSeen >= kBuffSeenMax)
+            return;
+        s_arBuffSeen[s_nBuffSeen++] = uKey;
+        PRINT("[d3hack-buffstack] %s attr 0x%03X power=%lld count=%d  from +%llX", szWhich,
+              static_cast<u32>(nAttr), static_cast<long long>(nParam), nVal,
+              static_cast<unsigned long long>(uFrom))
+    }
+
+    // THE THIRD SETTER. Neither ACD setter carries buff stacks -- both hooks installed, the
+    // liveness counter proved they ran, and BUFF_ICON_COUNT never appeared.
+    //
+    // attrxref.py has known about this one the whole time: its SETS list is
+    // (0x69ED90, 0x46FB90, 0x46FAC0). 0x46FB90 is ACD_AttributesSetInt; 0x69ED90 is a THIRD
+    // setter with 480 callers that is not in the symbol table at all. Its shape is
+    // (w0 = actor id, x1 = key, w2 = value) -- id-based rather than ACD-pointer-based.
+    //
+    // Hooked INLINE at 0x69EDB8, where w0/w1/w2 are all still live. An inline hook commits to
+    // no ABI: guessing a trampoline signature is what corrupted registers the last time a
+    // function was hooked on inference rather than evidence.
+    // Gears of Dreadlands Momentum, found by watching this setter:
+    //
+    //     SETID attr 0x309 power=484289 count=2..16      BUFF_ICON_COUNT10
+    //
+    // 484289 is P69_ItemPassive_Unique_Ring_010, the GoD 2-PIECE power -- not the 6pc, and not
+    // a separate buff SNO. Stacks climb to 16 and then tick back down one at a time.
+    //
+    // Safe to hook permanently: the liveness counter measured this setter at well under 50,000
+    // writes across a whole session, so it is nothing like the hot getters that caused the
+    // world-freeze regression.
+    inline constexpr s32 kMomentumPower = 484289;
+    inline constexpr s32 kMomentumAttr  = 0x309;
+    inline s32           s_nMomentumPeak = 0;
+    inline s32           s_nMomentumNow  = 0;   // last value the game wrote
+
+    // d3hack-custom: does the GoD auto-fired primary reach the Momentum grant path?
+    //
+    // The stack walk split grant from refresh cleanly. Frames [0]..[8] are shared buff/script
+    // machinery; the grant-only chain is:
+    //
+    //     [13] 8565F0  in 0x856080   (one caller: 0x855DEC)
+    //     [12] 852428  in 0x8522E0   (14 callers, 0x83xxxx-0x85xxxx -- an event dispatch)
+    //     [11] 9A5E64  in 0x9A4400
+    //     [10] 992D68  in 0x992C50
+    //     [ 9] 9B1C80  in 0x9B1AF0
+    //
+    // versus the periodic refresh, which diverges from [9] onward.
+    //
+    // Logging entry to the two OUTER grant frames says where the auto-fire stops:
+    //   both fire on manual and auto  -> divergence is deeper, below 0x8522E0
+    //   only manual reaches 0x856080  -> the auto-fire never enters the grant path at all
+    // Cold: per hit, not per attribute write.
+    // !! __builtin_return_address(0) IS USELESS IN AN INLINE HOOK !!
+    //
+    // It returns the exlaunch stub, not the game's caller -- which is why every inline probe
+    // reported the same "+1AA6104". It works in a TRAMPOLINE callback (that is why the
+    // engage-event hunt could use it) and nowhere else. Use WalkStack(ctx->X[29]) instead: it
+    // reads real frames, and it is what separated grant from decay in the first place.
+    // d3hack-custom: dump 0x856080's ARGUMENTS, and whether this call reached the grant.
+    //
+    // The function is entered on every hit but only sometimes calls 0x8522E0 (250 entries vs
+    // ~25 dispatches while Momentum drained), so the discriminator is in its inputs. Reading
+    // the whole 1392-byte function cold is possible but slow; diffing the arguments between a
+    // manual primary and an auto-fired one names the differing field directly.
+    //
+    // w27 = [x1] masked to 16 bits is a HANDLE, not a power SNO, so the interesting value is
+    // elsewhere in the argument set -- hence dumping all of them rather than guessing which.
+    //
+    // Deduped on the argument signature so a burst of identical hits prints once.
+    // d3hack-custom: GO AT THE AUTO-FIRE DIRECTLY.
+    //
+    // Established, not assumed:
+    //   - 0x856080 is entered per power use, with w3 = the power SNO
+    //         77552  DemonHunter_Bolas   (manual)  -> Momentum grants
+    //         134030 DemonHunter_Strafe  (strafing) -> no grant
+    //   - the auto-fired Bolas NEVER enters 0x856080; the entries seen while strafing are
+    //     Strafe's own ticks. That is why no stack is granted.
+    //   - every other argument is IDENTICAL between the two:
+    //         w0=E610E880 [x1]=7857009A w2=7BB98688 w4=FFFFFFFF w6=0 w7=0
+    //
+    // So re-invoke 0x856080 with the primary's SNO and the arguments already in registers.
+    // Throttled to every Nth Strafe tick, and only while the buff is actually up -- the 6pc
+    // auto-fire itself only works when you already have stacks, so this matches the mechanic
+    // rather than granting from nothing.
+    //
+    // A re-entry guard is essential: the injected call re-enters this same hook, and without
+    // it that is infinite recursion. It only injects on Strafe, so the injected Bolas call
+    // cannot inject again -- the guard is belt and braces.
+    inline constexpr s32 kStrafeSno = 134030;
+    inline s32           s_nLastPrimary = 0;
+
+    // Learned from the game's own writes -- never invented. The previous duration attempt
+    // ejected the player to town because it added ~1620 ticks per refresh, compounding, so the
+    // end tick ran far outside any value the game produces. This cancels the drain exactly:
+    // one stack's worth of time per suppressed decay, derived as baseDuration / maxStacks
+    // (540 / 20 = 27 ticks), so the remaining lifetime stays where it was instead of growing.
+    inline s32 s_nMomEndAttr = 0;   // which BUFF_ICON_END_TICK slot Momentum uses
+    inline s32 s_nMomEndVal  = 0;   // the last end tick the GAME wrote
+    inline s32 s_nMomBaseDur = 0;   // first observed end-start, latched
+    inline s32  s_nMomMaxSeen = 0;   // highest stack count observed
+    inline bool s_bMomWantRefresh = false;
+    inline u32  s_uMomActorId     = 0;   // captured where it is VALID
+
+    // d3hack-custom: WHICH powers actually reach the grant block?
+    //
+    // 0x8565CC is the block that ends in `bl 0x8522E0`. Reaching it means the grant path runs.
+    // While strafing, 0x856080 was entered ~250 times but 0x8522E0 only ~25 -- so most Strafe
+    // ticks are routed away before here, and neither injecting a call nor relabelling w3
+    // changed that. w23 holds the original w3 (the power SNO) by this point.
+    //
+    // This says whether Strafe EVER reaches the grant block. If it does and still grants
+    // nothing, the rejection is inside 0x8522E0 or the script below it. If it never does, the
+    // routing decision upstream is the target and this narrows where to read.
+    HOOK_DEFINE_INLINE(MomentumGrantBlock) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (global_config.rare_cheats.momentum_autofire_every <= 0)
+                return;
+            const s32  nPow = static_cast<s32>(ctx->W[23]);
+            static s32 s_ar[12] = {};
+            static int s_n = 0;
+            for (int k = 0; k < s_n; ++k)
+                if (s_ar[k] == nPow)
+                    return;
+            if (s_n >= 12)
+                return;
+            s_ar[s_n++] = nPow;
+            PRINT("[d3hack-mblock] grant block reached with power %d (momentum=%d)", nPow,
+                  s_nMomentumNow)
+        }
+    };
+
+    // d3hack-custom: keep Momentum alive while strafing, using the game's OWN re-arm.
+    //
+    // BUFF_ICON_END_TICK (0x27C) is a DISPLAY MIRROR, not the authority. Expiry is a scheduled
+    // timed event whose callback is 0x98F900, and every buff schedules exactly that one. Moving
+    // the mirror out of range is what ejected the player to town; it never touched the timer.
+    //
+    // Inside the callback:
+    //     0098F9A0  madd x8, x25, x8, x24    buff = x24 + x25*0x2E0
+    //     0098F9A4  ldr  w8, [x8, #0x84]     the "infinite duration" flag
+    //     0098F9A8  cbz  w8, 0x98F9D8        0 -> expire and remove      <-- HOOKED
+    //     0098F9B4  ldr  w2, [x20, #0x70]    else re-arm for a full stock duration
+    //     0098F9CC  bl   0x81B810            ...using the same callback, forever
+    //
+    // buff+0x84 is set at apply from bit 14 of buffDef+0x258, which the game sets when a buff
+    // has zero duration. So "infinite" is a supported state and the expiry path already handles
+    // it. Forcing w8 at the branch takes that path for one expiry without modifying the buff,
+    // so nothing is left set afterwards -- important, because while +0x84 is set the game's own
+    // RefreshBuffDuration (0x98E190) early-returns and the display stops updating.
+    //
+    // Why this cannot crash the way the previous attempts did: it issues NO calls. The reschedule
+    // is the game's own code, on the game thread, at the moment the buff system is already
+    // executing for this exact buff. 0x69ED90 -- which resolves actors with no bounds check, and
+    // is the reason every external write crashed -- is never reached.
+    inline bool s_bMomStrafing = false;
+
+    // d3hack-custom: suppress Momentum's PERIODIC Lua effect while strafing.
+    //
+    // The decrement is not a native write and not the expiry -- it is a periodic script effect.
+    // Periodic events use a DIFFERENT scheduler from expiry: 0x9E1110 ScheduleRepeatingEvent
+    // (callback in x2), not 0x81B810 (callback in x4), which is why an earlier sweep for buff
+    // timers only ever found expiry. Its callback is 0x98F250, and Lua is entered at exactly
+    // one instruction:
+    //
+    //     0098F440  madd x28, x25, x8, x24     buff = x24 + x25*0x2E0
+    //     0098F444  ldr  w9, [x28, #0x74]!     interval (pre-index: x28 becomes buff+0x74)
+    //     0098F448  ldur x8, [x28, #0x1c]      x8 = buff+0x90 = the Lua thunk
+    //     0098F464  blr  x8                    <-- HOOKED: Lua runs here
+    //
+    // Rather than skipping the instruction or rewriting control flow, x8 is pointed at a bare
+    // `ret` (0x24397C). The call happens, returns immediately, and everything after it -- the
+    // lockout attribute write and the reschedule -- runs untouched. No branch surgery, no
+    // external calls, and nothing left modified on the buff.
+    //
+    // Both mirrors are now understood: BUFF_ICON_END_TICK mirrors a scheduled timed event, and
+    // BUFF_ICON_COUNT mirrors a count the script keeps. Clamping either only moved the display,
+    // which is why the count froze at 4 on screen while the buff died underneath.
+    inline constexpr uintptr_t kBareRet = 0x24397C;
+
+    // d3hack-custom: STRETCH the periodic interval rather than suppressing the tick.
+    //
+    // Suppressing the Lua call at 0x98F464 stopped the decay but also removed the movement
+    // speed -- the periodic effect evidently applies the speed bonus as well as decrementing.
+    // Killing the call kills both.
+    //
+    // The reschedule reads the interval from buff+0x74 and tail-calls the repeating scheduler:
+    //     0098F4E0  ldr  w1, [x28]        x28 = buff+0x74, w1 = interval ticks
+    //     0098F4E4  cbz  w1, ...          0 would stop the loop entirely   <-- HOOKED
+    //     0098F514  b    0x9E1110         re-arm with x2 = 0x98F250
+    //
+    // Multiplying w1 in place is the same shape as the gem-grant fix: edit an argument of a
+    // call the game is already making. The tick still runs -- speed still applies, one stack
+    // still comes off -- just far less often, so stacks last proportionally longer.
+    //
+    // w1 is never set to 0, because 0 means "stop rescheduling" and the loop would not restart.
+    HOOK_DEFINE_INLINE(MomentumSlowTick) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            const int nPct = global_config.rare_cheats.momentum_duration_pct;
+            if (nPct <= 100 || !s_bMomStrafing)
+                return;
+            const s32 nCur = static_cast<s32>(ctx->W[1]);
+            if (nCur <= 0)
+                return;   // already stopping -- do not resurrect it
+            const auto uBuff = static_cast<uintptr_t>(ctx->X[28]) - 0x74ull;
+            if (uBuff < 0x1000000000ull || uBuff >= 0x8000000000ull)
+                return;
+            if (*reinterpret_cast<const s32 *>(uBuff + 0x20) != kMomentumPower)
+                return;
+            s64 nNew = (static_cast<s64>(nCur) * nPct) / 100;
+            if (nNew > 0x7FFFFF)
+                nNew = 0x7FFFFF;   // keep it a sane tick count
+            ctx->W[1] = static_cast<u64>(static_cast<u32>(nNew));
+            static int s_nLog = 0;
+            if (s_nLog < 6) {
+                ++s_nLog;
+                PRINT("[d3hack-momentum] periodic interval %d -> %d ticks (momentum=%d)", nCur,
+                      static_cast<int>(nNew), s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumNoTick) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (!global_config.rare_cheats.momentum_no_decay || !s_bMomStrafing)
+                return;
+            const auto uBuff = static_cast<uintptr_t>(ctx->X[24]) +
+                               static_cast<uintptr_t>(ctx->X[25]) * 0x2E0ull;
+            if (uBuff < 0x1000000000ull || uBuff >= 0x8000000000ull)
+                return;
+            if (*reinterpret_cast<const s32 *>(uBuff + 0x20) != kMomentumPower)
+                return;
+            ctx->X[8] = static_cast<u64>(GameOffset(kBareRet));
+            static int s_nLog = 0;
+            if (s_nLog < 6) {
+                ++s_nLog;
+                PRINT("[d3hack-momentum] periodic Lua tick suppressed (momentum=%d)",
+                      s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumKeepAlive) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (!global_config.rare_cheats.momentum_no_decay)
+                return;
+            if (!s_bMomStrafing)
+                return;
+            if (ctx->W[8] != 0)
+                return;   // already infinite -- leave it alone
+            const auto uBuff = static_cast<uintptr_t>(ctx->X[24]) +
+                               static_cast<uintptr_t>(ctx->X[25]) * 0x2E0ull;
+            if (uBuff < 0x1000000000ull || uBuff >= 0x8000000000ull)
+                return;
+            if (*reinterpret_cast<const s32 *>(uBuff + 0x20) != kMomentumPower)
+                return;
+            ctx->W[8] = 1;   // take the game's own re-arm branch
+            static int s_nLog = 0;
+            if (s_nLog < 6) {
+                ++s_nLog;
+                PRINT("[d3hack-momentum] expiry re-armed while strafing (momentum=%d)",
+                      s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumAutoFire) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            const int nEvery = global_config.rare_cheats.momentum_autofire_every;
+            static bool s_bIn = false;
+            if (s_bIn)
+                return;
+
+            const s32 nPower = static_cast<s32>(ctx->W[3]);
+            if (nEvery <= 0 && !global_config.rare_cheats.momentum_no_decay)
+                return;
+            s_bMomStrafing = (nPower == kStrafeSno);
+            if (nPower != kStrafeSno) {
+                // Remember the primary actually being used. Skip the object-interaction
+                // powers (Axe_Operate_Gizmo / _NPC) that also come through here.
+                if (nPower > 0 && nPower != 30021 && nPower != 30022)
+                    s_nLastPrimary = nPower;
+                return;
+            }
+            // THE END-TICK REFRESH IS REMOVED. Calling 0x69ED90 externally crashes, in
+            // every context tried: from inside the setter itself (re-entrant, half-built
+            // frame), and from an unrelated hook with a correctly captured actor id. The last
+            // attempt logged "held at 20" and then died on the call. Writing the value in place
+            // when the GAME writes it is safe; issuing our own write to that setter is not.
+            //
+            // What remains works and has never crashed: the decay is suppressed, so stacks hold
+            // at their high-water mark. The buff still expires on its own timer, which is the
+            // part that cannot be reached from out here.
+            (void) s_bMomWantRefresh;
+
+            if (s_nLastPrimary == 0 || s_nMomentumNow <= 0) {
+                // Say WHY nothing happened. A silent gate is indistinguishable from a hook
+                // that never installed -- which is exactly how this went unnoticed once.
+                static int s_nWhy = 0;
+                if (s_nWhy < 3) {
+                    ++s_nWhy;
+                    PRINT("[d3hack-momentum] strafe tick skipped: lastPrimary=%d momentum=%d",
+                          s_nLastPrimary, s_nMomentumNow)
+                }
+                return;
+            }
+
+            if (nEvery <= 0)
+                return;
+            static int s_nTick = 0;
+            if ((++s_nTick % nEvery) != 0)
+                return;
+
+            // RELABEL the real Strafe hit instead of injecting a synthetic call.
+            //
+            // Injecting 0x856080 with the primary's SNO ran, but granted nothing: the count
+            // fell 16,15,14,13,12,11 straight through re-fires #5..#9. The build pattern says
+            // why -- stacks arrive +1,+3,+4,+4,+4, i.e. ONE PER ENEMY HIT, not one per cast.
+            // A synthetic call carries a Strafe tick's arguments and connects with nothing, so
+            // there is no hit and no grant.
+            //
+            // The Strafe tick itself IS a real hit on real targets. Presenting it as the
+            // primary's power SNO means the on-hit path sees a primary hit that actually
+            // landed. Only every Nth tick is relabelled, so most hits stay Strafe.
+            //
+            // KNOWN RISK: that tick's damage and procs may be attributed to the primary rather
+            // than Strafe. Watch for damage numbers changing character while strafing; if they
+            // do, this trade is not worth it and MomentumAutoFireEvery = 0 reverts it.
+            ctx->W[3] = static_cast<u64>(static_cast<u32>(s_nLastPrimary));
+            (void) s_bIn;
+
+            static int s_nLog = 0;
+            if (s_nLog < 40) {
+                ++s_nLog;
+                PRINT("[d3hack-momentum] relabel #%d strafe tick as power %d (momentum=%d)",
+                      s_nLog, s_nLastPrimary, s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumGrantArgs) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            const u32 a0 = static_cast<u32>(ctx->W[0]);
+            const u32 a2 = static_cast<u32>(ctx->W[2]);
+            const u32 a3 = static_cast<u32>(ctx->W[3]);
+            const u32 a4 = static_cast<u32>(ctx->W[4]);
+            const u32 a6 = static_cast<u32>(ctx->W[6]);
+            const u32 a7 = static_cast<u32>(ctx->W[7]);
+            u32       id = 0;
+            const auto ux1 = static_cast<uintptr_t>(ctx->X[1]);
+            if (ux1 >= 0x1000000000ull && ux1 < 0x8000000000ull)
+                id = *reinterpret_cast<const u32 *>(ux1);
+            const u64 h = (static_cast<u64>(a0) << 32) ^ (static_cast<u64>(a2) << 24) ^
+                          (static_cast<u64>(a3) << 16) ^ (static_cast<u64>(a4) << 8) ^
+                          (static_cast<u64>(a6) << 4) ^ a7;
+            static u64 s_ar[20] = {};
+            static int s_n = 0;
+            for (int k = 0; k < s_n; ++k)
+                if (s_ar[k] == h)
+                    return;
+            if (s_n >= 20)
+                return;
+            s_ar[s_n++] = h;
+            PRINT("[d3hack-margs] w0=%08X [x1]=%08X w2=%08X w3=%08X w4=%08X w6=%08X w7=%08X "
+                  "momentum=%d",
+                  a0, id, a2, a3, a4, a6, a7, s_nMomentumNow)
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumGrantOuter) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            WalkStackOnce("856080 entry", static_cast<uintptr_t>(ctx->X[29]));
+            // Chains cannot say WHICH phase they came from, so count instead. Strafe-only for
+            // ten seconds and compare: if this climbs while Momentum does not, the auto-fired
+            // primary DOES dispatch and the script declines to grant. If it does not climb, the
+            // auto-fire never reaches the hit path at all. Those need different fixes.
+            {
+                static int s_n = 0;
+                if ((++s_n % 25) == 0)
+                    PRINT("[d3hack-mgrant] 856080 entries: %d   momentum=%d", s_n,
+                          s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(MomentumGrantDispatch) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            WalkStackOnce("8522E0 dispatch", static_cast<uintptr_t>(ctx->X[29]));
+            {
+                static int s_n = 0;
+                if ((++s_n % 25) == 0)
+                    PRINT("[d3hack-mgrant] 8522E0 dispatches: %d   momentum=%d", s_n,
+                          s_nMomentumNow)
+            }
+        }
+    };
+
+    HOOK_DEFINE_INLINE(BuffStackProbeId) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            const s32 nAttrEarly = static_cast<s32>(ctx->W[1]) & 0xFFF;
+
+            // Track the live Momentum count UNCONDITIONALLY. It was previously assigned inside
+            // the momentum_no_decay branch, so with that feature off the counter stayed 0 and
+            // every other feature that reads it silently did nothing. Shared state must not
+            // live behind one feature's flag -- that is now three bugs of this exact shape in
+            // this feature alone.
+            if (nAttrEarly == kMomentumAttr) {
+                const s64 nPm = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+                if (nPm == kMomentumPower) {
+                    // w0 here is THIS function's actor id. At the Strafe hook w0 is a different
+                    // function's first argument entirely -- passing that as an actor id is what
+                    // crashed on the first strafe tick. Capture it where it is valid.
+                    s_uMomActorId   = static_cast<u32>(ctx->W[0]);
+                    const s32 nPrev = s_nMomentumNow;
+                    s_nMomentumNow  = static_cast<s32>(ctx->W[2]);
+                    if (s_nMomentumNow > s_nMomMaxSeen)
+                        s_nMomMaxSeen = s_nMomentumNow;
+                    // Trajectory, not a snapshot. Six "momentum=20" lines right after building
+                    // to 20 manually proved nothing about whether the re-fire actually grants.
+                    if (global_config.rare_cheats.momentum_autofire_every > 0) {
+                        static int s_nT = 0;
+                        if (s_nT < 60 && s_nMomentumNow != nPrev) {
+                            ++s_nT;
+                            PRINT("[d3hack-mtrack] %d -> %d", nPrev, s_nMomentumNow)
+                        }
+                    }
+                }
+            }
+
+            // Record the end-tick slot and the last value the GAME wrote, plus the base
+            // duration. Everything the refresh uses comes from these.
+            {
+                const s64 nPe = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+                if (nPe == kMomentumPower) {
+                    static s32 s_nStartSeen = 0;
+                    if (nAttrEarly >= 0x252 && nAttrEarly <= 0x261) {
+                        s_nStartSeen = static_cast<s32>(ctx->W[2]);
+                    } else if (nAttrEarly >= 0x272 && nAttrEarly <= 0x281) {
+                        s_nMomEndAttr = nAttrEarly;
+                        s_nMomEndVal  = static_cast<s32>(ctx->W[2]);
+                        if (s_nMomBaseDur == 0 && s_nStartSeen > 0 &&
+                            (s_nMomEndVal - s_nStartSeen) > 0)
+                            s_nMomBaseDur = s_nMomEndVal - s_nStartSeen;
+                    }
+                }
+            }
+
+            // d3hack-custom: LENGTHEN the Momentum buff instead of freezing its count.
+            //
+            // Measured on the id setter, letting stacks run out untouched:
+            //
+            //     attr 0x25C power=484289 = 719     BUFF_ICON_START_TICK10
+            //     attr 0x27C power=484289 = 1259    BUFF_ICON_END_TICK10
+            //
+            // 540 ticks of life. **The end tick IS writable through this setter**, which
+            // overturns the note that buff expiry is a native timed event -- that was measured
+            // against the ACD setters only, before 0x69ED90 was known.
+            //
+            // Stacks drain because the TIMER drains; a primary hit both adds a stack and
+            // refreshes this tick. So extending it is the honest fix, where holding the count
+            // (MomentumNoDecay) only masked the number while the timer expired underneath and
+            // dropped it to 0 with no warning.
+            //
+            // The slot index is not hardcoded: any START/END tick attribute carrying the
+            // Momentum power is accepted, so a different buff slot still works.
+            if (global_config.rare_cheats.momentum_duration_pct > 100) {
+                const s64 nP = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+                if (nP == kMomentumPower) {
+                    // START_TICK is written ONCE when the buff is applied; END_TICK is
+                    // rewritten on every refresh. So `end - start` grows against a stale
+                    // baseline (540, 720, 960, 1200 ...) and multiplying it compounds. Latch
+                    // the FIRST duration as the base and add a constant extension instead.
+                    static s32 s_nStart = 0;
+                    static s32 s_nBaseDur = 0;
+                    if (nAttrEarly >= 0x252 && nAttrEarly <= 0x261) {
+                        s_nStart = static_cast<s32>(ctx->W[2]);
+                    } else if (nAttrEarly >= 0x272 && nAttrEarly <= 0x281 && s_nStart > 0) {
+                        const s32 nEnd = static_cast<s32>(ctx->W[2]);
+                        if (s_nBaseDur == 0 && (nEnd - s_nStart) > 0)
+                            s_nBaseDur = nEnd - s_nStart;   // 540 ticks, latched once
+                        const s32 nDur = s_nBaseDur;
+                        if (nDur > 0) {
+                            const s64 nNew =
+                                static_cast<s64>(nEnd) +
+                                (static_cast<s64>(nDur) *
+                                 (global_config.rare_cheats.momentum_duration_pct - 100)) / 100;
+                            ctx->W[2] = static_cast<u64>(static_cast<u32>(nNew));
+                            static int s_nLog = 0;
+                            if (s_nLog < 4) {
+                                ++s_nLog;
+                                PRINT("[d3hack-momentum] base %d ticks, end %d -> %d (+%d)",
+                                      nDur, nEnd, static_cast<int>(nNew),
+                                      static_cast<int>(nNew) - nEnd)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // d3hack-custom: hold Momentum at its high-water mark.
+            //
+            // Building still works normally and a value of 0 still clears it -- that is the
+            // buff genuinely ending, and blocking it would strand stacks forever. Only the
+            // downward tick while the buff is ALIVE is suppressed.
+            //
+            // This is deliberately not "make the auto-fired primary grant a stack". Every write
+            // here arrives through one generic wrapper (+1AA6104), so grant and decay are
+            // indistinguishable by caller, and finding the auto-fire path would be another
+            // multi-probe hunt. Holding the peak achieves the same thing for a strafe build.
+            if (global_config.rare_cheats.momentum_no_decay && nAttrEarly == kMomentumAttr) {
+                const s64 nP = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+                if (nP == kMomentumPower) {
+                    const s32 nVal = static_cast<s32>(ctx->W[2]);
+                    s_nMomentumNow = nVal;
+                    if (nVal <= 0) {
+                        s_nMomentumPeak = 0;          // buff ended -- let it clear
+                    } else if (nVal >= s_nMomentumPeak) {
+                        s_nMomentumPeak = nVal;       // building
+                    } else {
+                        ctx->W[2] = static_cast<u64>(static_cast<u32>(s_nMomentumPeak));
+                        // NO WRITE HERE. This hook sits INSIDE 0x69ED90, partway through its
+                        // prologue; calling that same function from here re-enters it with a
+                        // half-built frame and crashed the game. A re-entry guard prevents
+                        // recursion, not corruption. The refresh is issued from the Strafe-tick
+                        // hook instead, which is an unrelated context.
+                        s_bMomWantRefresh = true;
+                        static int s_nLog = 0;
+                        if (s_nLog < 4) {
+                            ++s_nLog;
+                            PRINT("[d3hack-momentum] held at %d (game wanted %d)",
+                                  s_nMomentumPeak, nVal)
+                        }
+                    }
+                }
+            }
+
+            // d3hack-custom: WHO grants a Momentum stack?
+            //
+            // Every write to 0x309 arrives through one generic wrapper (+1AA6104), so grant and
+            // decay are indistinguishable by immediate caller. Walk the frame chain instead --
+            // the same technique that cracked the floor-plan chain at 0x785950.
+            //
+            // A stack GRANT is an increase; a decay tick is a decrease. Walking both and
+            // diffing the chains names the code that decides to grant, which is the thing the
+            // auto-fired primary needs to trip.
+            if (global_config.rare_cheats.buff_stack_probe && nAttrEarly == kMomentumAttr) {
+                const s64 nP = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+                if (nP == kMomentumPower) {
+                    const s32  nVal = static_cast<s32>(ctx->W[2]);
+                    s_nMomentumNow = nVal;
+                    static s32 s_nLast = 0;
+                    static int s_nUp = 0, s_nDown = 0;
+                    const bool bUp = (nVal > s_nLast);
+                    // Two of each is plenty and keeps the log readable; a burst of decay ticks
+                    // must not crowd out the grant, which is the case that matters.
+                    if (nVal > 0 && ((bUp && s_nUp < 2) || (!bUp && s_nDown < 2))) {
+                        if (bUp) ++s_nUp; else ++s_nDown;
+                        char szWhat[48];
+                        ::snprintf(szWhat, sizeof(szWhat), "momentum %s %d -> %d",
+                                   bUp ? "GRANT" : "decay", s_nLast, nVal);
+                        WalkStack(szWhat, static_cast<uintptr_t>(ctx->X[29]));
+                    }
+                    s_nLast = nVal;
+                }
+            }
+
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            const s32 nAttr = nAttrEarly;
+            {
+                static int s_nAll = 0;
+                if ((++s_nAll % 50000) == 1 && s_nAll < 200000)
+                    PRINT("[d3hack-buffstack] id setter alive: %d writes, latest attr 0x%03X",
+                          s_nAll, static_cast<u32>(nAttr))
+            }
+            if (!IsBuffStackAttr(nAttr))
+                return;
+            const s64 nParam = static_cast<s64>(static_cast<s32>(ctx->W[1])) >> 12;
+            NoteBuffStack("SETID", nAttr, nParam, static_cast<int>(ctx->W[2]),
+                          reinterpret_cast<u64>(__builtin_return_address(0)) -
+                              exl::util::modules::GetTargetStart());
+        }
+    };
+
+    HOOK_DEFINE_TRAMPOLINE(BuffStackProbeInt) {
+        static void Callback(ActorCommonData *tACD, FastAttribKey tKey, s32 nValue) {
+            Orig(tACD, tKey, nValue);
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            const s32 nAttr = static_cast<s32>(KeyGetAttrib(tKey));
+            {
+                static int s_nAll = 0;
+                if ((++s_nAll % 50000) == 1 && s_nAll < 200000)
+                    PRINT("[d3hack-buffstack] int setter alive: %d writes", s_nAll)
+            }
+            if (!IsBuffStackAttr(nAttr))
+                return;
+            NoteBuffStack("SETI", nAttr, KeyGetParam(tKey), nValue,
+                          reinterpret_cast<u64>(__builtin_return_address(0)) -
+                              exl::util::modules::GetTargetStart());
+        }
+    };
+
+    HOOK_DEFINE_TRAMPOLINE(BuffStackProbeFloat) {
+        static void Callback(ActorCommonData *tACD, FastAttribKey tKey, float flValue) {
+            Orig(tACD, tKey, flValue);
+            if (!global_config.rare_cheats.buff_stack_probe)
+                return;
+            const s32 nAttr = static_cast<s32>(KeyGetAttrib(tKey));
+            if (!IsBuffStackAttr(nAttr))
+                return;
+            NoteBuffStack("SETF", nAttr, KeyGetParam(tKey), static_cast<int>(flValue),
+                          reinterpret_cast<u64>(__builtin_return_address(0)) -
+                              exl::util::modules::GetTargetStart());
+        }
+    };
 
     // The FEATURE lives on two cold inline hooks, NOT on this trampoline.
     //
@@ -9939,6 +10805,48 @@ namespace d3 {
                 SetBonusSkillCapture::InstallAtOffset(0x97B694);
                 SetBonusAnyWeapon::InstallAtOffset(0x97B6AC);
                 PRINT_LINE("[d3hack-set] weapon-gate bypass installed at 0x97B694 / 0x97B6AC");
+            }
+            if (global_config.rare_cheats.momentum_autofire_every > 0 ||
+                global_config.rare_cheats.momentum_no_decay) {
+                MomentumAutoFire::InstallAtOffset(0x8560A4);   // after w3 is set, args live
+                MomentumKeepAlive::InstallAtOffset(0x98F9A8);  // the expiry branch
+                // MomentumNoTick (0x98F464) is NOT installed: suppressing the Lua tick also
+                // removed the movement speed the same effect applies. Stretch instead.
+                MomentumSlowTick::InstallAtOffset(0x98F4E4);   // the reschedule interval
+                PRINT_LINE("[d3hack-momentum] expiry keep-alive at 0x98F9A8 (no external calls)");
+                MomentumGrantBlock::InstallAtOffset(0x8565CC);  // the grant block itself
+                PRINT("[d3hack-momentum] auto-fire grant every %d strafe ticks",
+                      global_config.rare_cheats.momentum_autofire_every)
+            }
+            // The auto-fire gate reads s_nMomentumNow, which is only maintained by the buff
+            // hook below -- so that hook has to install whenever ANY momentum feature is on.
+            // Gating it on the two shortcuts alone left the counter pinned at 0 and the
+            // auto-fire silently rejected every tick.
+            if ((global_config.rare_cheats.momentum_no_decay ||
+                 global_config.rare_cheats.momentum_autofire_every > 0 ||
+                 global_config.rare_cheats.momentum_duration_pct > 100) &&
+                !global_config.rare_cheats.buff_stack_probe) {
+                BuffStackProbeId::InstallAtOffset(0x69EDB8);
+                PRINT_LINE("[d3hack-momentum] Momentum decay hold installed at 0x69EDB8");
+            }
+            if (global_config.rare_cheats.buff_stack_probe) {
+                PRINT("[d3hack-buffstack] symbols: SetInt=%d SetFloat=%d",
+                      ACD_AttributesSetInt != nullptr, ACD_AttributesSetFloat != nullptr)
+                if (ACD_AttributesSetInt != nullptr) {
+                    BuffStackProbeInt::InstallAtFuncPtr(ACD_AttributesSetInt);
+                    PRINT_LINE("[d3hack-buffstack] installed on ACD_AttributesSetInt");
+                }
+                if (ACD_AttributesSetFloat != nullptr) {
+                    BuffStackProbeFloat::InstallAtFuncPtr(ACD_AttributesSetFloat);
+                    PRINT_LINE("[d3hack-buffstack] installed on ACD_AttributesSetFloat");
+                }
+                BuffStackProbeId::InstallAtOffset(0x69EDB8);
+                MomentumGrantOuter::InstallAtOffset(0x856080);
+                MomentumGrantArgs::InstallAtOffset(0x8560A0);   // args still in w0..w7
+                MomentumGrantDispatch::InstallAtOffset(0x8522E0);
+                PRINT_LINE("[d3hack-buffstack] installed on the id setter 0x69ED90");
+                PRINT_LINE("[d3hack-mgrant] grant-path entry probes at 0x856080 / 0x8522E0");
+                PRINT_LINE("[d3hack-buffstack] TEMPORARY -- hot hook, turn off when done");
             }
             if (global_config.rare_cheats.empowered_gem_upgrades > 0) {
                 GemGrantMaxCapture::InstallAtOffset(0x77BBE0);
