@@ -5719,6 +5719,103 @@ namespace d3 {
         }
     };
 
+    // d3hack-custom: THE RIFT FLOOR'S OWN DENSITY. Found by walking the stack, not by reading.
+    //
+    // 0x94BCAC -- the multiplier everyone has been raising since v3.3 -- fires only with
+    // s_snoAssignedMap == 0. It is a non-rift world spawner, which is why 3x, 10x and 100x
+    // were indistinguishable inside a Greater Rift. Measured from both sides: 4 density calls
+    // in a session against 21,000 funnel spawns on rift floors.
+    //
+    // The stack chains from those spawns end like this, for real monsters:
+    //
+    //     876E40 <- 94D870 <- 94D22C <- 94C36C <- 94BA24 <- 6F7D30 <- 662F88 <- 816B40 ...
+    //
+    // 0x94BA24 is inside the SAME function as the old hook (0x94B700) but on a different
+    // branch -- one static reading never reached because 0x6FB230 in the middle has zero BL
+    // references and is called through a pointer.
+    //
+    // That branch is a linked-list walk, one spawn per accepted entry:
+    //
+    //     0094B9EC  (top)  ldr x20, [x20, #0x20]   next node
+    //     0094BA00         bl  0x8169B0            accept this entry?
+    //     0094BA04         cbz w0, skip
+    //     0094BA20         bl  0x94C1B0            <- spawn ONE
+    //     0094BA24         cbz w0, break
+    //     0094BA28         cbnz x20, top
+    //
+    // So a rift floor's monster count is the number of accepted list entries. There is no
+    // count to scale -- the multiplier has to be "run the spawn N times per entry".
+    //
+    // 0x94C1B0 has three callers (0x94B864, 0x94BA20, 0x94C028), so this matches on the
+    // RETURN ADDRESS, the same discipline the empowered-gem write needed. Only the rift walk
+    // is multiplied.
+    //
+    // A zero return means the caller breaks out of the list walk, so a failed spawn is never
+    // multiplied -- repeating a failure would just burn the per-floor budget.
+    inline constexpr int kRiftDensExtraMax = 4000;
+
+    inline int s_nRiftDensExtra = 0;
+    inline s32 s_snoRiftDensMap = 0;
+
+    HOOK_DEFINE_TRAMPOLINE(RiftFloorSpawnMultiply) {
+        static auto Callback(u64 a0, u64 a1, u32 a2, u64 a3, u32 a4, u32 a5) -> s32 {
+            const s32 nFirst = Orig(a0, a1, a2, a3, a4, a5);
+
+            {
+                static int s_nAll = 0;
+                if (++s_nAll == 1)
+                    PRINT_LINE("[d3hack-riftdens] per-entry spawn hook is LIVE (0x94C1B0)");
+            }
+
+            const u64 uFrom = reinterpret_cast<u64>(__builtin_return_address(0)) -
+                              exl::util::modules::GetTargetStart();
+            if (uFrom != 0x94BA24ull)
+                return nFirst;          // not the rift floor list walk
+            if (s_snoAssignedMap == 0)
+                return nFirst;
+            if (nFirst == 0)
+                return nFirst;          // the caller stops on 0; do not multiply a failure
+
+            int nMul = MapDensityFor(s_snoAssignedMap);
+            if (nMul <= 0)
+                nMul = global_config.rare_cheats.gr_density_multiplier;
+            if (nMul <= 1)
+                return nFirst;
+
+            if (s_snoAssignedMap != s_snoRiftDensMap) {
+                s_snoRiftDensMap = s_snoAssignedMap;
+                s_nRiftDensExtra = 0;
+            }
+
+            for (int k = 1; k < nMul; ++k) {
+                if (s_nRiftDensExtra >= kRiftDensExtraMax) {
+                    static int s_nCapLog = 0;
+                    if (s_nCapLog < 2) {
+                        ++s_nCapLog;
+                        PRINT("[d3hack-riftdens] per-floor budget of %d extra spawns reached on "
+                              "map=%d -- the rest of this floor is stock. Lower the multiplier "
+                              "if you wanted it spread further.", kRiftDensExtraMax,
+                              s_snoAssignedMap)
+                    }
+                    break;
+                }
+                Orig(a0, a1, a2, a3, a4, a5);
+                ++s_nRiftDensExtra;
+            }
+
+            static int s_nLog = 0;
+            if (s_nLog < 4) {
+                ++s_nLog;
+                PRINT("[d3hack-riftdens] map=%d \"%s\": x%d per accepted entry (%d extra so "
+                      "far this floor)", s_snoAssignedMap,
+                      (RiftMapName(s_snoAssignedMap) != nullptr)
+                          ? RiftMapName(s_snoAssignedMap) : "-",
+                      nMul, s_nRiftDensExtra)
+            }
+            return nFirst;
+        }
+    };
+
     HOOK_DEFINE_INLINE(GreaterRiftDensity) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             // d3hack-custom: a per-map override beats the global multiplier outright, so an
@@ -10970,6 +11067,9 @@ namespace d3 {
             if (global_config.rare_cheats.gr_density_multiplier > 1 ||
                 global_config.rare_cheats.world_density_multiplier > 1) {
                 GreaterRiftDensity::InstallAtOffset(0x94BCAC);  // d3hack-custom
+                RiftFloorSpawnMultiply::InstallAtOffset(0x94C1B0);  // d3hack-custom
+                PRINT_LINE("[d3hack-riftdens] rift floor spawn multiplier installed at "
+                           "0x94C1B0 (caller-matched to 0x94BA24)");
                 PRINT("[d3hack-custom] density hook installed at 0x94BCAC (rift x%d, world "
                       "x%d, rifts_only=%d)",
                       global_config.rare_cheats.gr_density_multiplier,
