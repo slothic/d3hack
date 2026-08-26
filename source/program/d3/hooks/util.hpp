@@ -3608,6 +3608,69 @@ namespace d3 {
         }
     }
 
+    // d3hack-custom: the Greater Rift progress bar. WATCH IT BEFORE TOUCHING IT.
+    //
+    // 0x524 = Dungeon_Finder_Progress_Percent, found in the attribute name table. That is the
+    // bar that has to reach 100% to spawn the Guardian, so "more kills required above GR150"
+    // means shrinking what each kill contributes to it.
+    //
+    // Everything about how it is written is unknown: absolute percent or a delta, 0..1 or
+    // 0..100, int setter or float setter, once per kill or once per frame. Guessing any of
+    // those and scaling the wrong thing would either do nothing or make the rift
+    // uncompletable, and `attrxref.py 0x524` reports nothing because it only sees
+    // movn-materialised keys -- which HANDOFF explicitly warns is not evidence of absence.
+    //
+    // So: read-only, both setters, and cover the case where it never appears on either.
+    inline constexpr s32 kAttrRiftProgress = 0x524;
+
+    inline int s_nRiftProgWrites = 0;
+
+    HOOK_DEFINE_TRAMPOLINE(RiftProgressProbeInt) {
+        static void Callback(ActorCommonData *tACD, FastAttribKey tKey, s32 nValue) {
+            Orig(tACD, tKey, nValue);
+            if (!global_config.rare_cheats.rift_progress_probe)
+                return;
+            {
+                static int s_nAll = 0;
+                if ((++s_nAll % 100000) == 1 && s_nAll < 400000)
+                    PRINT("[d3hack-gprog] int setter alive: %d writes", s_nAll)
+            }
+            if (static_cast<s32>(KeyGetAttrib(tKey)) != kAttrRiftProgress)
+                return;
+            if (s_nRiftProgWrites < 40) {
+                ++s_nRiftProgWrites;
+                PRINT("[d3hack-gprog] SETINT 0x524 = %d  gr=%d  caller +0x%lX", nValue,
+                      TrueGRLevel(),
+                      reinterpret_cast<u64>(__builtin_return_address(0)) -
+                          exl::util::modules::GetTargetStart())
+            }
+        }
+    };
+
+    HOOK_DEFINE_TRAMPOLINE(RiftProgressProbeFloat) {
+        static void Callback(ActorCommonData *tACD, FastAttribKey tKey, float flValue) {
+            Orig(tACD, tKey, flValue);
+            if (!global_config.rare_cheats.rift_progress_probe)
+                return;
+            {
+                static int s_nAll = 0;
+                if ((++s_nAll % 100000) == 1 && s_nAll < 400000)
+                    PRINT("[d3hack-gprog] float setter alive: %d writes", s_nAll)
+            }
+            if (static_cast<s32>(KeyGetAttrib(tKey)) != kAttrRiftProgress)
+                return;
+            if (s_nRiftProgWrites < 40) {
+                ++s_nRiftProgWrites;
+                // Milli-units: the log macro has no float formatting, and 0.0134 vs 1.34 is
+                // exactly the distinction this probe exists to make.
+                PRINT("[d3hack-gprog] SETFLOAT 0x524 = %d/1000  gr=%d  caller +0x%lX",
+                      static_cast<int>(flValue * 1000.0f), TrueGRLevel(),
+                      reinterpret_cast<u64>(__builtin_return_address(0)) -
+                          exl::util::modules::GetTargetStart())
+            }
+        }
+    };
+
     // d3hack-custom: which suffix the GAME would print for a value.
     //
     // Not log1000. The game rolls to the next tier when the mantissa would reach 10000, so
@@ -11522,6 +11585,12 @@ namespace d3 {
             // install whenever the feature is on -- gating it on the diagnostic meant turning
             // WorldGenProbe off silently disabled banning. The other three are pure
             // diagnostics and stay behind the probe flag.
+            if (global_config.rare_cheats.rift_progress_probe) {
+                RiftProgressProbeInt::InstallAtFuncPtr(ACD_AttributesSetInt);
+                RiftProgressProbeFloat::InstallAtFuncPtr(ACD_AttributesSetFloat);
+                PRINT_LINE("[d3hack-gprog] rift progress probe installed on BOTH attribute "
+                           "setters (watching 0x524)");
+            }
             if (global_config.rare_cheats.number_format_probe ||
                 global_config.rare_cheats.big_number_suffixes ||
                 global_config.rare_cheats.damage_number_tiers > 0) {
