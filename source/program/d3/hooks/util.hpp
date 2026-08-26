@@ -5650,6 +5650,17 @@ namespace d3 {
             // applies in town (rifts_only is off by default and the startup lines prove it), so
             // this changes a 3 to a 10 there rather than switching something on -- but if town
             // feels wrong after a rift, this is why.
+            // LIVENESS, before any early return. A session that entered two rift floors
+            // produced zero density lines while the install line printed happily -- and the
+            // only silent exit is uWas == 0, so "fired with a zero base" and "never fired at
+            // all" were indistinguishable. That ambiguity is the exact trap this file keeps
+            // falling into. Every exit below now says which one it took.
+            {
+                static int s_nCalls = 0;
+                if (++s_nCalls == 1)
+                    PRINT_LINE("[d3hack-density] hook is LIVE (0x94BCAC)");
+            }
+
             const int nOverride = MapDensityFor(s_snoAssignedMap);
 
             // Rift floors and everything else get separate multipliers. A number that makes a
@@ -5697,9 +5708,27 @@ namespace d3 {
                 return;
             }
 
+            // w27 is the game's own spawn count, built at 0x94BC1C-0x94BC44 as
+            // floor(density) + Bernoulli(fraction) -- stochastic rounding. So a base of 0 is
+            // not an error, it is the common outcome whenever the area's density is below 1,
+            // and 0 * anything is still 0. If that is where the multiplier keeps landing, no
+            // multiplier can ever raise it and the feature needs a floor, not a factor.
+            //
+            // Counted and reported rather than skipped in silence.
             const u32 uWas = ctx->W[27];
-            if (uWas == 0u)
+            if (uWas == 0u) {
+                static int s_nZero = 0;
+                ++s_nZero;
+                if (s_nDensityLogs < 8 && (s_nZero <= 2 || (s_nZero % 50) == 0)) {
+                    ++s_nDensityLogs;
+                    PRINT("[d3hack-density] base is 0 for map=%d \"%s\" -- nothing to multiply "
+                          "(%d such calls so far)", s_snoAssignedMap,
+                          (RiftMapName(s_snoAssignedMap) != nullptr)
+                              ? RiftMapName(s_snoAssignedMap) : "-",
+                          s_nZero)
+                }
                 return;
+            }
             u64        uNew      = static_cast<u64>(uWas) * static_cast<u64>(nMul);
             const bool bClamped  = (uNew > 512ull);
             if (bClamped)
