@@ -4648,24 +4648,56 @@ namespace d3 {
         }
     };
 
+    // !! "bonus > 0" IS NOT THE EMPOWERMENT TEST. It fired on ordinary rifts. !!
+    //
+    // That was this feature's third wrong layer, and like the first two it logged exactly the
+    // numbers expected. A user reported the upgrades arriving on non-empowered Greater Rifts;
+    // the disassembly says why in five instructions:
+    //
+    //     0077BC5C  ldr  w8, [x9, #0x30]   flag out of a per-game hash map
+    //     0077BC60  cbz  w8, 0x77BC6C
+    //     0077BC64  mov  w25, #1             -> w25 = 1   (EMPOWERED)
+    //     0077BC6C  mov  w25, wzr            -> w25 = 0
+    //     0077BC74  bl   0x51ADF0          returns 1 when attribute 0x595 < 1
+    //     0077BC80  cinc w2, w25, ne       BONUS = w25 + (that ? 1 : 0)
+    //
+    // and 0x595 is Tiered_Loot_Run_Death_Count. So BONUS is the sum of TWO independent
+    // +1s -- empowered, and completed the rift without dying -- which is exactly the stock
+    // rule. A deathless ordinary rift therefore stores 1, `nBonus > 0` passed, and the
+    // upgrades were granted with no empowerment anywhere in sight. Stock empowered reading 2
+    // was 1+1, never a single "empowered" value.
+    //
+    // w25 is untouched between the cinc and this hook, so the empowerment flag is simply
+    // there to be read. That is the gate now, and the deathless half is what W[2] != W[25]
+    // reports -- logged rather than acted on, because the game already handles it.
     HOOK_DEFINE_INLINE(GemGrantBonusSet) {
         static void Callback(exl::hook::InlineCtx *ctx) {
+            const s32  nBonus     = static_cast<s32>(ctx->W[2]);
+            const s32  nEmpowered = static_cast<s32>(ctx->W[25]);
+            const bool bDeathless = (nBonus != nEmpowered);
+
+            // Log EVERY grant, not only the ones we change. A probe that speaks up only when
+            // it acts cannot distinguish "the gate held" from "the hook never ran", and this
+            // feature has now been wrong three times with a convincing log each time.
+            static int s_nLog = 0;
+            if (s_nLog < 8) {
+                ++s_nLog;
+                PRINT("[d3hack-gw] grant: max=%d bonus=%d  (empowered=%d deathless=%d)",
+                      s_nGemMaxSeen, nBonus, nEmpowered ? 1 : 0, bDeathless ? 1 : 0)
+            }
+
             const int nWant = global_config.rare_cheats.empowered_gem_upgrades;
             if (nWant <= 0)
                 return;
-            const s32 nBonus = static_cast<s32>(ctx->W[2]);
-            if (nBonus <= 0)
-                return;   // not empowered -- a normal rift stores 0 here
+            if (nEmpowered == 0)
+                return;   // ordinary rift -- leave it alone, empowering has to mean something
             const s32 nNew = static_cast<s32>(nWant) - s_nGemMaxSeen;
             if (nNew <= nBonus)
                 return;   // never take attempts away
             ctx->W[2] = static_cast<u64>(static_cast<u32>(nNew));
-            static int s_nLog = 0;
-            if (s_nLog < 4) {
-                ++s_nLog;
+            if (s_nLog <= 8)
                 PRINT("[d3hack-gw] GRANT: max=%d bonus=%d -> %d  (total %d)", s_nGemMaxSeen,
                       nBonus, nNew, nWant)
-            }
         }
     };
 
