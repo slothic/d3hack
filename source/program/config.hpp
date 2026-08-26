@@ -220,6 +220,7 @@ struct PatchConfig {
         float  view_dolly_zmax        = -60.0f; // d3hack-custom: see ViewDollyZMin.
         bool   power_formula_probe     = false;// d3hack-custom: log every distinct (power SNO, Script Formula N) -> value the game evaluates. How you find the number behind a skill.
         bool   power_random_probe      = false;// d3hack-custom: log which powers roll the script RNG, and what they roll. Finds proc chances that are not Script Formulas.
+        bool   rift_spawn_probe        = false;// d3hack-custom: TEMPORARY. While standing on a rift floor, log every DISTINCT caller of the actor-spawn funnel at 0x86E2E0 plus a running call count. 0x94BCAC turned out to be a non-rift spawner, so the path that populates a Greater Rift floor is unknown; this makes it name itself. A zero count is a real answer -- it means rift monsters do not come through that funnel at all.
         bool   world_gen_probe         = false;// d3hack-custom: log the world SNO on every world entry, plus every distinct small-span RandomInt roll made DURING world generation. A "pick one of N" roll is how a Vision of Enmity chooses its per-level monster type -- including the all-treasure-goblin level.
         int    power_random_bias_sno   = 0;    // d3hack-custom: power SNO whose script RNG rolls are biased (0 = off). 488544 is Vision of Enmity.
         int    power_random_bias_pct   = 100;  // d3hack-custom: multiplier on that power's rolls, percent. BELOW 100 makes `roll < chance` pass more often -- 25 is roughly 4x the procs.

@@ -5573,12 +5573,62 @@ namespace d3 {
     inline s32           s_arFunnelSeen[kFunnelSeenMax] = {};
     inline int           s_nFunnelSeen = 0;
 
+    // d3hack-custom: WHO populates a rift floor? Ask the funnel, do not read for it.
+    //
+    // 0x94BCAC -- the density hook -- fires only with s_snoAssignedMap == 0, i.e. never on a
+    // rift floor. Its loop is genuine but it belongs to a non-rift world spawner, which is why
+    // 3x, 10x and 100x all looked identical inside a Greater Rift. Static reading found two
+    // call sites of the placement pair and neither is the rift path.
+    //
+    // This hook sits on the actor-spawn funnel at 0x86E2E0, at its FIRST instruction, so X[30]
+    // is still the caller's return address. Distinct callers only, module-relative, while a
+    // rift tileset is assigned. Whatever builds a rift floor has to create actors somehow, and
+    // if it goes through here it names itself in one run.
+    //
+    // NO SNOToString CALL. It reads thread-local state and this funnel can run on a world-gen
+    // worker, which is what killed the first world-factory probe. Numbers only.
+    inline constexpr int kRiftSpawnMax = 24;
+
+    inline u64  s_arRiftSpawnFrom[kRiftSpawnMax] = {};
+    inline s32  s_arRiftSpawnSno[kRiftSpawnMax]  = {};
+    inline int  s_nRiftSpawnFrom                 = 0;
+    inline int  s_nRiftSpawnCalls                = 0;
+
     HOOK_DEFINE_INLINE(ActorSpawnWellToPool) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             const uintptr_t uParams = static_cast<uintptr_t>(ctx->X[0]);
             if (uParams < 0x1000000000ull || uParams >= 0x8000000000ull)
                 return;
             auto *pSno = reinterpret_cast<s32 *>(uParams + 4);
+
+            if (global_config.rare_cheats.rift_spawn_probe) {
+                {
+                    static int s_nAll = 0;
+                    if (++s_nAll == 1)
+                        PRINT_LINE("[d3hack-riftspawn] funnel hook is LIVE (0x86E2E0)");
+                }
+                if (s_snoAssignedMap != 0) {
+                    const u64 uFrom = static_cast<u64>(ctx->X[30]) -
+                                      exl::util::modules::GetTargetStart();
+                    ++s_nRiftSpawnCalls;
+                    bool bNew = true;
+                    for (int i = 0; i < s_nRiftSpawnFrom; ++i)
+                        if (s_arRiftSpawnFrom[i] == uFrom)
+                            bNew = false;
+                    if (bNew && s_nRiftSpawnFrom < kRiftSpawnMax) {
+                        s_arRiftSpawnSno[s_nRiftSpawnFrom]    = *pSno;
+                        s_arRiftSpawnFrom[s_nRiftSpawnFrom++] = uFrom;
+                        PRINT("[d3hack-riftspawn] caller +0x%lX  first sno=%d  map=%d  "
+                              "(%d calls so far)", uFrom, *pSno, s_snoAssignedMap,
+                              s_nRiftSpawnCalls)
+                    }
+                    // Periodic total, so "few distinct callers" cannot be mistaken for
+                    // "few spawns".
+                    if ((s_nRiftSpawnCalls % 250) == 0)
+                        PRINT("[d3hack-riftspawn] %d spawns on rift floors so far, %d distinct "
+                              "callers", s_nRiftSpawnCalls, s_nRiftSpawnFrom)
+                }
+            }
 
             // Probe: name every DISTINCT actor born through the funnel. Zero swaps last run
             // was ambiguous -- it could mean no well spawned, or that wells bypass this
@@ -10863,7 +10913,8 @@ namespace d3 {
             if (global_config.rare_cheats.pool_xp_percent > 0)
                 pools::Load();
             if (global_config.rare_cheats.wells_as_pools ||
-                global_config.rare_cheats.well_spawn_probe) {
+                global_config.rare_cheats.well_spawn_probe ||
+                global_config.rare_cheats.rift_spawn_probe) {
                 HealthWellToPool::InstallAtOffset(0x94D570);  // d3hack-custom
                 // MarkerWellToPool (0x4EF6A4) retired -- it writes ACD+0x14, a downstream
                 // copy. Proven inert in game: "field write 1" logged, well unchanged.
