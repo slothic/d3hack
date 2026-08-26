@@ -4486,6 +4486,51 @@ namespace d3 {
     inline constexpr s32 kStrafeSno = 134030;
     inline s32           s_nLastPrimary = 0;
 
+    // d3hack-custom: WHY the relabelled Strafe tick still granted nothing -- read out of
+    // 0x856080, not guessed.
+    //
+    // Control flow of 0x856080 (entry 0x856080, epilogue 0x8567A0). The grant call is
+    // `bl 0x8522E0` at 0x8565EC, reached from the argument-setup block at 0x8565CC. TEN
+    // branches land on 0x8565CC (0x856220, 0x856330, 0x85633C, 0x85635C, 0x856370, 0x8563A4,
+    // 0x8563A8, 0x8563B0, 0x8563C4 and the fallthrough at 0x8565A0), so the function
+    // overwhelmingly DOES reach the grant. There are only two ways out that do not:
+    //
+    //   1. 0x856160  w27 = 0x84EB40(actorId, powerSno, x2, 1)      <-- THE GATE
+    //      0x856168  cmp w0, #1
+    //      0x85616C  b.hi 0x8563FC        -- verdict > 1 -> the failure block, no grant.
+    //      0x8563FC logs "player swished because BrainStanceFailureReason" (string at
+    //      0xE85A4A), which is what names that block as the refusal handler.
+    //
+    //   2. 0x856200  cbz w28, 0x8563F8    -- the 0x73AE10 gate behind a
+    //      `[x28+0xDA68] > now` staleness test at 0x856190; sets w27 = 4 and joins the same
+    //      failure block, which then either queues the request (0x9A0550) or drops it.
+    //
+    // 0x84EB40's verdict, read at 0x84ED64..0x84EE1C:
+    //      0  start this power fresh
+    //      1  ALREADY running this exact power with state [x+0x60][0x34] == 4, i.e. a channel
+    //         continuation
+    //      2..8  refusal codes, derived from the failure bitmask 0x9A0D60 returns
+    //
+    // And that verdict is passed straight through as w3 to 0x8522E0, where it matters again:
+    //      0x852340  cmp w23, #1 ; b.eq 0x8524F8   -> the "retarget power %s" branch
+    //                (string at 0xE58B3F), which never calls 0x9A4400
+    //      w3 == 0   -> 0x852350.. builds the event object and raises it at
+    //                `bl 0x9A4400` (0x852424) -- and 0x852428 is frame [12] of the recorded
+    //                Momentum GRANT stack.
+    //
+    // So the grant is raised by the POWER-USED EVENT on a FRESH cast only. Relabelling w3 on
+    // a Strafe tick cannot get there on its own: 0x84EB40 is asked "can this actor start
+    // <primary> right now", mid-channel it answers with a refusal code, and 0x85616C throws
+    // the call away before 0x8565CC. That is why "neither injecting a call nor relabelling w3
+    // changed that" -- both died at the same branch.
+    //
+    // MomentumForceVerdict makes the relabelled tick satisfy that condition: it forces the
+    // verdict to 0 for exactly the tick MomentumAutoFire relabelled, and logs the code it
+    // replaced so the next session knows which refusal Strafe->primary actually produces.
+    inline bool s_bMomForceCast   = false;   // set by the relabel, consumed at 0x856164
+    inline u32  s_uMomVerdictLive = 0;       // liveness: every 0x856080 verdict seen
+    inline s32  s_nMomLastVerdict = -1;      // the code that was overridden, for the report
+
     // Learned from the game's own writes -- never invented. The previous duration attempt
     // ejected the player to town because it added ~1620 ticks per refresh, compounding, so the
     // end tick ran far outside any value the game produces. This cancels the drain exactly:
@@ -4725,11 +4770,65 @@ namespace d3 {
             ctx->W[3] = static_cast<u64>(static_cast<u32>(s_nLastPrimary));
             (void) s_bIn;
 
+            // Arm the verdict override for THIS invocation only. 0x856164 is on the
+            // straight-line path from 0x8560A4 -- every branch between them (0x8560CC,
+            // 0x8560EC, 0x856104, 0x856138, 0x856148) converges on 0x856150, which falls
+            // through to it -- so the flag is always consumed in the same call and can never
+            // go stale. Without this the relabelled tick is refused at 0x85616C.
+            s_bMomForceCast = true;
+
             static int s_nLog = 0;
             if (s_nLog < 40) {
                 ++s_nLog;
                 PRINT("[d3hack-momentum] relabel #%d strafe tick as power %d (momentum=%d)",
                       s_nLog, s_nLastPrimary, s_nMomentumNow)
+            }
+        }
+    };
+
+    // d3hack-custom: force the cast verdict for the relabelled Strafe tick.
+    //
+    // Hooked at 0x856164 (`mov w27, w0`), which runs immediately after
+    // `bl 0x84EB40` at 0x856160 and immediately before `cmp w0, #1` / `b.hi 0x8563FC`.
+    // Writing W[0] here fixes BOTH consumers with one store: w27 (passed on as 0x8522E0's w3,
+    // where 0 selects the event-raising fresh-cast path and 1 selects "retarget power") and
+    // the compare that decides whether the call is thrown away at 0x85616C.
+    //
+    // Only the tick MomentumAutoFire relabelled is touched. Every other power request on the
+    // player's request pipeline -- including all the un-relabelled Strafe ticks -- keeps the
+    // game's own verdict, so a genuinely illegal cast is still refused.
+    //
+    // The liveness counter is unconditional and deliberately outside the feature gate: silence
+    // from this hook with no counter would not distinguish "never installed" from "installed
+    // and never armed", which is the trap that has cost this project six runs.
+    HOOK_DEFINE_INLINE(MomentumForceVerdict) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            ++s_uMomVerdictLive;
+            static u32 s_uNextLive = 200;
+            if (s_uMomVerdictLive >= s_uNextLive) {
+                s_uNextLive += 200;
+                PRINT("[d3hack-mforce] alive: %u verdicts seen, last override %d (momentum=%d)",
+                      s_uMomVerdictLive, s_nMomLastVerdict, s_nMomentumNow)
+            }
+            if (!s_bMomForceCast)
+                return;
+            s_bMomForceCast = false;
+
+            const s32 nVerdict = static_cast<s32>(static_cast<u32>(ctx->W[0]));
+            s_nMomLastVerdict  = nVerdict;
+            if (nVerdict == 0)
+                return;   // already a fresh cast -- nothing to force
+
+            ctx->W[0] = 0;
+
+            // Report the refusal code that was overridden. 0 and 1 are legal outcomes; 2..8
+            // are 0x84EB40's refusal codes, so whichever number shows up here names exactly
+            // which condition 0x9A0D60 was failing for the primary mid-Strafe.
+            static int s_nLog = 0;
+            if (s_nLog < 20) {
+                ++s_nLog;
+                PRINT("[d3hack-mforce] #%d verdict %d -> 0 for power %d (momentum=%d)", s_nLog,
+                      nVerdict, s_nLastPrimary, s_nMomentumNow)
             }
         }
     };
@@ -11534,6 +11633,16 @@ namespace d3 {
                 MomentumGrantBlock::InstallAtOffset(0x8565CC);  // the grant block itself
                 PRINT("[d3hack-momentum] auto-fire grant every %d strafe ticks",
                       global_config.rare_cheats.momentum_autofire_every)
+            }
+            // MomentumAutoFireEvery -- and ONLY that key -- installs the verdict override.
+            // The relabel alone is inert: 0x85616C throws the relabelled tick away before it
+            // can reach `bl 0x8522E0`, so this hook is the half that makes the feature do
+            // anything at all. Keep the key in the install condition (see the four dead
+            // features at the top of HANDOFF.md).
+            if (global_config.rare_cheats.momentum_autofire_every > 0) {
+                MomentumForceVerdict::InstallAtOffset(0x856164);
+                PRINT_LINE("[d3hack-mforce] cast-verdict override installed at 0x856164 "
+                           "(0x84EB40 refusal -> fresh cast for the relabelled tick)");
             }
             // The auto-fire gate reads s_nMomentumNow, which is only maintained by the buff
             // hook below -- so that hook has to install whenever ANY momentum feature is on.
