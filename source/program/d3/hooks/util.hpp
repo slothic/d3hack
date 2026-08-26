@@ -5370,7 +5370,14 @@ namespace d3 {
     // The count is clamped to 512. If the placement routine at 0x94D8A0 cannot find room it
     // just logs "Could not pick a valid spot to put spawn group" and moves on, so the real
     // ceiling is spatial and this only guards against a runaway multiply.
+    // Reset at every world entry, NOT once per boot. The old single budget of 8 was spent
+    // in TOWN during the first load -- the archived logs show all eight lines arriving right
+    // after "rift level = -1" -- so every firing inside an actual rift floor was invisible.
+    // "Density does not work in Greater Rifts" was unfalsifiable from the log for that reason
+    // alone.
     inline int s_nDensityLogs = 0;
+
+    inline void ResetDensityLogs() { s_nDensityLogs = 0; }
 
     // d3hack-custom: turn every Health Well into a Pool of Reflection.
     //
@@ -5611,7 +5618,25 @@ namespace d3 {
             // open map can be dense without making corridors unplayable.
             // Per-map override is GR-only as well: s_snoAssignedMap is only meaningful for a
             // greater-rift floor, and a stale value must not leak into a normal rift.
-            const int nOverride = (TrueGRLevel() > 0) ? MapDensityFor(s_snoAssignedMap) : 0;
+            // !! TrueGRLevel() IS -1 HERE. It always has been. !!
+            //
+            // Every density line ever logged reads "gr=-1", across every archived session. So
+            // `(TrueGRLevel() > 0)` was never once true at this call site, which means
+            // MapDensityOverrides has NEVER applied to anything -- all sixteen configured
+            // entries parsed, logged, resolved and then sat unreachable behind a condition
+            // that cannot hold. The tier is simply not set yet when worldgen runs; the hook
+            // below already anticipated exactly this for the rifts_only gate and said so in a
+            // comment, and nobody carried the thought one line up.
+            //
+            // s_snoAssignedMap is a sound key on its own: RiftMapAssign only ever stores a
+            // value that RiftMapName() recognises, so it is a rift tileset or it is zero.
+            //
+            // Known, bounded side effect to watch for: it is never cleared, so after a rift it
+            // still names that rift's map while you are in town. The global multiplier already
+            // applies in town (rifts_only is off by default and the startup lines prove it), so
+            // this changes a 3 to a 10 there rather than switching something on -- but if town
+            // feels wrong after a rift, this is why.
+            const int nOverride = MapDensityFor(s_snoAssignedMap);
             const int nMul      = (nOverride > 0) ? nOverride
                                                   : global_config.rare_cheats.gr_density_multiplier;
             if (nMul <= 1)
@@ -5640,8 +5665,15 @@ namespace d3 {
 
             if (s_nDensityLogs < 8) {
                 ++s_nDensityLogs;
-                PRINT("[d3hack-density] gr=%d spawn groups %u -> %u (x%d%s)", nGR,
-                      static_cast<unsigned>(uWas), static_cast<unsigned>(uNew), nMul, nOverride > 0 ? " per-map" : "")
+                // Name the map and say whether an override matched. Without those two facts
+                // the line cannot answer the only question anyone asks of it -- "did MY
+                // setting apply to THIS floor" -- and reports it in gr=-1 form that looks
+                // like a failure when it is merely an unset tier.
+                const char *szMap = RiftMapName(s_snoAssignedMap);
+                PRINT("[d3hack-density] gr=%d map=%d \"%s\" spawn groups %u -> %u (x%d%s)",
+                      nGR, s_snoAssignedMap, (szMap != nullptr) ? szMap : "-",
+                      static_cast<unsigned>(uWas), static_cast<unsigned>(uNew), nMul,
+                      nOverride > 0 ? " PER-MAP" : " global")
             }
         }
     };
