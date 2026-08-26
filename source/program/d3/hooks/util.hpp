@@ -5648,8 +5648,22 @@ namespace d3 {
             // this changes a 3 to a 10 there rather than switching something on -- but if town
             // feels wrong after a rift, this is why.
             const int nOverride = MapDensityFor(s_snoAssignedMap);
-            const int nMul      = (nOverride > 0) ? nOverride
-                                                  : global_config.rare_cheats.gr_density_multiplier;
+
+            // Rift floors and everything else get separate multipliers. A number that makes a
+            // rift floor worth clearing turns town into a slideshow.
+            //
+            // "In a rift" is s_snoAssignedMap != 0, and that is Greater AND Nephalem rifts:
+            // what can be tested at world-generation time is "this floor was handed a rift
+            // tileset", not which kind of rift owns it. The tier that would separate them is
+            // -1 here -- see the gate below and every gr=-1 in the logs. Doing better would
+            // mean reading the plan's _GR_ labels, which lives behind RiftMapSubstitute, and
+            // making density depend on the substitution setting is the coupling that has
+            // already produced three dead features in this file.
+            const bool bRiftFloor = (s_snoAssignedMap != 0);
+            const int  nBase      = bRiftFloor
+                                        ? global_config.rare_cheats.gr_density_multiplier
+                                        : global_config.rare_cheats.world_density_multiplier;
+            const int  nMul       = (nOverride > 0) ? nOverride : nBase;
             if (nMul <= 1)
                 return;
 
@@ -5670,9 +5684,8 @@ namespace d3 {
             // before the create that clears the flag can still see the previous rift's map.
             // The line below reports the decision every time, which is how that gets caught if
             // it happens rather than argued about.
-            const int  nGR     = TrueGRLevel();
-            const bool bInRift = (s_snoAssignedMap != 0);
-            if (global_config.rare_cheats.gr_density_rifts_only && !bInRift) {
+            const int nGR = TrueGRLevel();
+            if (global_config.rare_cheats.gr_density_rifts_only && !bRiftFloor) {
                 if (s_nDensityLogs < 8) {
                     ++s_nDensityLogs;
                     PRINT("[d3hack-density] skipped, not a rift world: groups=%u (gr=%d)",
@@ -5684,8 +5697,9 @@ namespace d3 {
             const u32 uWas = ctx->W[27];
             if (uWas == 0u)
                 return;
-            u64 uNew = static_cast<u64>(uWas) * static_cast<u64>(nMul);
-            if (uNew > 512ull)
+            u64        uNew      = static_cast<u64>(uWas) * static_cast<u64>(nMul);
+            const bool bClamped  = (uNew > 512ull);
+            if (bClamped)
                 uNew = 512ull;
             ctx->W[27] = static_cast<u32>(uNew);
 
@@ -5696,10 +5710,11 @@ namespace d3 {
                 // setting apply to THIS floor" -- and reports it in gr=-1 form that looks
                 // like a failure when it is merely an unset tier.
                 const char *szMap = RiftMapName(s_snoAssignedMap);
-                PRINT("[d3hack-density] gr=%d map=%d \"%s\" spawn groups %u -> %u (x%d%s)",
+                PRINT("[d3hack-density] gr=%d map=%d \"%s\" spawn groups %u -> %u (x%d %s)%s",
                       nGR, s_snoAssignedMap, (szMap != nullptr) ? szMap : "-",
                       static_cast<unsigned>(uWas), static_cast<unsigned>(uNew), nMul,
-                      nOverride > 0 ? " PER-MAP" : " global")
+                      (nOverride > 0) ? "PER-MAP" : (bRiftFloor ? "rift" : "world"),
+                      bClamped ? "  CLAMPED at 512 -- the multiplier is capped here" : "")
             }
         }
     };
@@ -10826,10 +10841,13 @@ namespace d3 {
                       global_config.rare_cheats.wells_as_pools ? 1 : 0,
                       global_config.rare_cheats.well_spawn_probe ? 1 : 0)
             }
-            if (global_config.rare_cheats.gr_density_multiplier > 1) {
+            if (global_config.rare_cheats.gr_density_multiplier > 1 ||
+                global_config.rare_cheats.world_density_multiplier > 1) {
                 GreaterRiftDensity::InstallAtOffset(0x94BCAC);  // d3hack-custom
-                PRINT("[d3hack-custom] density hook installed at 0x94BCAC (x%d, rifts_only=%d)",
+                PRINT("[d3hack-custom] density hook installed at 0x94BCAC (rift x%d, world "
+                      "x%d, rifts_only=%d)",
                       global_config.rare_cheats.gr_density_multiplier,
+                      global_config.rare_cheats.world_density_multiplier,
                       global_config.rare_cheats.gr_density_rifts_only ? 1 : 0)
             }
             // d3hack-custom: the rift map pick. Installed whenever there is a ban list OR

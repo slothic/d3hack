@@ -498,6 +498,7 @@ namespace {
             t.insert("HealthWellsAsPoolsOfReflection", config.rare_cheats.wells_as_pools);
             t.insert("WellSpawnProbe", config.rare_cheats.well_spawn_probe);
             t.insert("GreaterRiftDensityMultiplier", config.rare_cheats.gr_density_multiplier);
+            t.insert("WorldDensityMultiplier", config.rare_cheats.world_density_multiplier);
             t.insert("GreaterRiftDensityRiftsOnly", config.rare_cheats.gr_density_rifts_only);
             t.insert("RiftLevelDump", config.rare_cheats.rift_level_dump);
             t.insert("RiftTableDump", config.rare_cheats.rift_table_dump);
@@ -712,7 +713,10 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         rare_cheats.power_formula_percent   = ReadI32(*section, {"PowerFormulaScalePercent"}, rare_cheats.power_formula_percent, 1, 100000);
         rare_cheats.wells_as_pools          = ReadBool(*section, {"HealthWellsAsPoolsOfReflection"}, rare_cheats.wells_as_pools);
         rare_cheats.well_spawn_probe        = ReadBool(*section, {"WellSpawnProbe"}, rare_cheats.well_spawn_probe);
-        rare_cheats.gr_density_multiplier   = ReadI32(*section, {"GreaterRiftDensityMultiplier"}, rare_cheats.gr_density_multiplier, 1, 20);
+        // Ceiling raised 20 -> 1000. The old one silently clamped anything above it, so a
+        // configured 50 became 20 with no word said about it.
+        rare_cheats.gr_density_multiplier   = ReadI32(*section, {"GreaterRiftDensityMultiplier"}, rare_cheats.gr_density_multiplier, 1, 1000);
+        rare_cheats.world_density_multiplier = ReadI32(*section, {"WorldDensityMultiplier"}, rare_cheats.world_density_multiplier, 1, 1000);
         rare_cheats.gr_density_rifts_only   = ReadBool(*section, {"GreaterRiftDensityRiftsOnly"}, rare_cheats.gr_density_rifts_only);
         rare_cheats.rift_level_dump         = ReadBool(*section, {"RiftLevelDump"}, rare_cheats.rift_level_dump);
         rare_cheats.rift_table_dump         = ReadBool(*section, {"RiftTableDump"}, rare_cheats.rift_table_dump);

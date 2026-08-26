@@ -33,7 +33,8 @@ that controls it.
    Set damage bonuses ignore the weapon requirement  SetBonusAnyWeapon = true
 
  MONSTERS
-   Monster density x10 ........................... GreaterRiftDensityMultiplier = 10
+   Monster density, rifts ........................ GreaterRiftDensityMultiplier = 100
+   Monster density, everywhere else .............. WorldDensityMultiplier = 50
    Juggernaut, Wormhole and Shielding never roll .. DisabledMonsterAffixes
    (any elite affix can be disabled by name)
 
@@ -163,8 +164,20 @@ SET BONUSES SHIFT DOWN ONE TIER
 MONSTER DENSITY x3
     That many times more spawn groups are placed, of the normal shape -- so
     elite and champion ratios stay as designed, there are simply more packs.
-        GreaterRiftDensityMultiplier = 10  1 = stock, up to 20
+        GreaterRiftDensityMultiplier = 100  inside a rift
+        WorldDensityMultiplier       = 50   town, open world, bounties
         GreaterRiftDensityRiftsOnly  = false
+    Both go from 1 (stock) to 1000. These are large numbers -- start lower if
+    the frame rate suffers.
+
+    The rift value covers Greater AND Nephalem rifts. What the game can be
+    asked at the moment a floor is built is "was this floor given a rift
+    tileset", not which kind of rift it belongs to.
+
+    A MapDensityOverrides entry REPLACES whichever of the two would apply --
+    it does not stack with them and it is not a floor. An override of 10 on a
+    map, with the rift value at 100, makes that map TEN times stock and not a
+    hundred. Set overrides relative to the number you actually want.
 
     RiftsOnly = true confines the multiplier to rift floors and leaves town
     and the open world at stock. It works properly from v3.10; before that it
@@ -583,8 +596,10 @@ CRASHES AFTER ENTERING A WORLD
         SocketAffixSuppress            = false
 
 TOO MANY MONSTERS / SLOWDOWN
-    GreaterRiftDensityMultiplier = 3, or 1 for stock. It goes up to 20;
-    the shipped 10 is a lot, and open maps feel it most.
+    GreaterRiftDensityMultiplier = 3 and WorldDensityMultiplier = 1, or 1
+    for stock. The shipped 100 / 50 are very high and open maps feel it
+    most. If the log says CLAMPED at 512 the multiplier is being capped
+    and raising it further changes nothing.
 
 XP MULTIPLIER LOOKS WRONG
     Delete pools_u0.txt to reset the pool count.
@@ -654,7 +669,14 @@ NEW FEATURES
       * MapDensityOverrides sets density per map, for the open tilesets
         that look bare at a multiplier tuned for corridors. It works from
         v3.10 -- before that it was gated on the rift tier, which is not set
-        when the world is built, so no override ever applied.
+        when the world is built, so no override ever applied. It replaces
+        the global value rather than adding to it, so an override LOWER than
+        GreaterRiftDensityMultiplier makes that map emptier, not fuller.
+
+        Overrides only ever apply on rift floors, since they key off the
+        floor's rift tileset. Naming a map the Greater Rift engine does not
+        roll will do nothing there -- the log says PER-MAP when one applies
+        and rift or world when the global value is used instead.
 
       * If you ban nearly everything, check the log once. D3Debug.txt
         beside config.toml says one of:
