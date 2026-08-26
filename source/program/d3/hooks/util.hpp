@@ -2601,11 +2601,17 @@ namespace d3 {
         PrettyMapName(szNew != nullptr ? szNew : szOld, szPretty, sizeof(szPretty));
         if (szPretty[0] == 0)
             return;
-        if (snoNew != snoOld)
-            d3::imgui_overlay::PostCombatLog(0.75f, 0.85f, 1.00f, "Map: %s  (replaced a banned map)",
-                                             szPretty);
-        else
-            d3::imgui_overlay::PostCombatLog(0.75f, 0.85f, 1.00f, "Map: %s", szPretty);
+        // The map name goes to the MAP PANEL, never to the combat log.
+        //
+        // map_info_window.hpp says it plainly -- "Deliberately NOT the combat log. The log is a
+        // scrolling history that fades, which is wrong for this: the map name is state, not an
+        // event." The panel was built for exactly this and then these calls kept posting the
+        // same text into the log as well, so the kill feed was pushed off screen by map
+        // announcements and read as if it had stopped working.
+        //
+        // Nothing is lost by dropping them: SetMapInfo already feeds the panel, and the panel
+        // can be glanced at any time instead of only in the seconds before the line scrolls.
+        (void) szPretty;
     }
 
     HOOK_DEFINE_INLINE(RiftTilesetAssign) {
@@ -2814,8 +2820,8 @@ namespace d3 {
 
         if (!global_config.rare_cheats.map_name_overlay)
             return;
+        // Panel only -- see the note above. The combat log is the kill feed.
         d3::imgui_overlay::SetMapInfo(s_szCurMap, s_szNextMap, s_nLastGRSeen);
-        d3::imgui_overlay::PostCombatLog(0.75f, 0.85f, 1.00f, "Map: %s", szPretty);
     }
 
     // d3hack-custom: who calls the floor-setup function?
@@ -9661,6 +9667,16 @@ namespace d3 {
                     }
                 }
             }
+
+            // d3hack-custom: THE KILL LINE, and it must be OUTSIDE the probe block below.
+            //
+            // It used to sit inside `if (s_bEliteEventProbe)`, which is only set when the
+            // elite-event DIAGNOSTIC is switched on. So `CombatLog = true` on its own produced
+            // no kill lines, and the flag that would have fixed it is one a player has no
+            // reason to enable. PollAnnouncedDeaths already gates itself on combat_log, so it
+            // belongs out here with the feature rather than in there with the diagnostic.
+            PollAnnouncedDeaths();
+
             if (s_bEliteEventProbe) {
                 const int nAttr = static_cast<int>(KeyGetAttrib(tKey));
 
@@ -9712,10 +9728,6 @@ namespace d3 {
                 // Deduped by (attr, caller): 0x509 is restamped every tick while engaged,
                 // so without this the same call site would repeat hundreds of times. What
                 // matters is the SET of distinct call sites, not the count.
-            // d3hack-custom: the kill line is driven by polling what we announced --
-            // see PollAnnouncedDeaths. Both attribute routes were measured dead.
-            PollAnnouncedDeaths();
-
             if (nAttr == ENGAGED_RARE_TIME || nAttr == LAST_ACD_KILLED_TIME ||
                     nAttr == ENGAGED_GOBLIN_TIME) {
                     const auto lr   = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
@@ -11449,23 +11461,41 @@ namespace d3 {
         // d3hack-custom: the camera work rides the ACD attribute hook. Install it on its own
         // when the elite probe is off, so a diagnostic run does not have to drag the combat
         // log's probes -- and their log volume -- along with it.
-        if (global_config.rare_cheats.active && !global_config.rare_cheats.elite_event_probe &&
+        const bool bCombatFeed =
+            global_config.rare_cheats.active && global_config.rare_cheats.combat_log;
+        const bool bEliteProbe =
+            global_config.rare_cheats.active && global_config.rare_cheats.elite_event_probe;
+
+        if (global_config.rare_cheats.active && !bEliteProbe && !bCombatFeed &&
             (global_config.rare_cheats.camera_trap || global_config.rare_cheats.camera_observer_scan ||
              global_config.rare_cheats.shrine_duration_probe)) {
             EliteEventProbe::InstallAtFuncPtr(ACD_AttributesSetInt);
             PRINT("[d3hack-own] ACD hook installed for the camera probes only%s", "")
         }
 
-        // d3hack-custom: elite engage/kill event probe. Read-only, off by default.
-        if (global_config.rare_cheats.active && global_config.rare_cheats.elite_event_probe) {
-            s_bEliteEventProbe = true;
-            EliteEventProbe::InstallAtFuncPtr(ACD_AttributesSetInt);
-            s_bHandlerProbe = true;
-            EngageHandlerProbe::InstallAtOffset(0x853500);
-            KillHandlerProbe::InstallAtOffset(0x842DF0);
-            PRINT("[d3hack-handler] entry probes installed (engage 0x853500, kill 0x842DF0)%s", "")
-            EliteEventProbeFloat::InstallAtFuncPtr(ACD_AttributesSetFloat);
-            PRINT("[d3hack-elite] event probe installed (attrs 0x508 0x509 0x472)%s", "")
+        // d3hack-custom: the combat log's hooks, plus the elite-event DIAGNOSTIC on top.
+        //
+        // These installed only under EliteEventProbe, so `CombatLog = true` was completely
+        // inert -- no "engaged", no "killed", nothing. The FEATURE rode on a diagnostic flag a
+        // player has no reason to switch on. That is the fourth time in this file a working
+        // feature has been found gated behind a probe, after the rift-map plan trigger, the
+        // per-map density override and RiftsOnly.
+        //
+        // The feature installs the hooks. The probe only raises the logging volume, which is
+        // all s_bEliteEventProbe / s_bHandlerProbe ever did.
+        if (bEliteProbe || bCombatFeed) {
+            s_bEliteEventProbe = bEliteProbe;
+            s_bHandlerProbe    = bEliteProbe;
+            EliteEventProbe::InstallAtFuncPtr(ACD_AttributesSetInt);   // carries the kill line
+            EngageHandlerProbe::InstallAtOffset(0x853500);             // carries the engage line
+            if (bEliteProbe) {
+                // Pure diagnostics, and both are hot. They stay with the probe.
+                KillHandlerProbe::InstallAtOffset(0x842DF0);
+                EliteEventProbeFloat::InstallAtFuncPtr(ACD_AttributesSetFloat);
+                PRINT("[d3hack-elite] event probe installed (attrs 0x508 0x509 0x472)%s", "")
+            }
+            PRINT("[d3hack-handler] combat log hooks installed (engage 0x853500) "
+                  "combat_log=%d probe=%d", bCombatFeed ? 1 : 0, bEliteProbe ? 1 : 0)
         }
 
         // d3hack-custom: main-view camera probe / observer swap. Off by default, and the
