@@ -145,9 +145,96 @@ namespace d3 {
         };
     };
 
+    // d3hack-custom: WHAT does the game render once a number passes 999T?
+    //
+    // Its abbreviation vocabulary is exactly four localized keys -- General:StatAbbr (K),
+    // ...Millions, ...Billions, ...Trillions. There is no quadrillion suffix anywhere in the
+    // binary, and none of those four keys is referenced by native code at all: no adrp/add
+    // pair, no pointer in .rodata or .data, no literal pool. They are consumed by the asset
+    // layer, so the tier logic is not a constant table that can simply be extended.
+    //
+    // That leaves the question this probe answers: past a trillion, does the game print raw
+    // digits, or a huge number still carrying the T suffix? The two need different fixes, and
+    // guessing which is how a day gets spent on the wrong one.
+    //
+    // Self-discovering on purpose. Which register holds the text differs between the three
+    // draw entry points, so rather than disassembling all three, scan X0..X3 for something
+    // that reads as a string. Bounds-checked like every other pointer read in this fork.
+    //
+    // !! FONT DRAW IS EXTREMELY HOT !! Every string, every frame. Hence: off by default, one
+    // cheap bool test when off, distinct values only, and a hard cap.
+    inline constexpr int kNumFmtMax = 24;
+
+    inline u64 s_arNumFmtSeen[kNumFmtMax] = {};
+    inline int s_nNumFmtSeen              = 0;
+
     HOOK_DEFINE_INLINE(FontStringDrawHook) {
         static void Callback(exl::hook::InlineCtx *ctx) {
-            (void)ctx;
+            if (!global_config.rare_cheats.number_format_probe)
+                return;
+            {
+                static int s_nAll = 0;
+                if (++s_nAll == 1)
+                    PRINT_LINE("[d3hack-numfmt] font draw hook is LIVE");
+            }
+            if (s_nNumFmtSeen >= kNumFmtMax)
+                return;
+
+            for (int r = 0; r <= 3; ++r) {
+                const auto uPtr = static_cast<uintptr_t>(ctx->X[r]);
+                if (uPtr < 0x1000000000ull || uPtr >= 0x8000000000ull)
+                    continue;
+                const auto *pc = reinterpret_cast<const char *>(uPtr);
+
+                // Accept 8-bit or UTF-16LE, whichever the entry point happens to use.
+                char szBuf[48];
+                int  nLen  = 0;
+                bool bWide = (pc[0] != 0 && pc[1] == 0 && pc[2] != 0 && pc[3] == 0);
+                for (int i = 0; i < 40; ++i) {
+                    const char c = bWide ? pc[i * 2] : pc[i];
+                    if (c == 0)
+                        break;
+                    if (c < 0x20 || c > 0x7E) {
+                        nLen = 0;
+                        break;
+                    }
+                    szBuf[nLen++] = c;
+                }
+                szBuf[nLen < 47 ? nLen : 47] = 0;
+                if (nLen < 6)
+                    continue;
+
+                // Only strings that look like a BIG number: a digit run long enough that
+                // abbreviation should already have kicked in. Without this the log fills with
+                // UI labels before anything interesting is drawn -- the same budget mistake
+                // the shard and area probes made.
+                int nRun = 0;
+                int nMax = 0;
+                for (int i = 0; i < nLen; ++i) {
+                    if (szBuf[i] >= '0' && szBuf[i] <= '9') {
+                        ++nRun;
+                        if (nRun > nMax)
+                            nMax = nRun;
+                    } else {
+                        nRun = 0;
+                    }
+                }
+                if (nMax < 7)
+                    continue;
+
+                u64 h = 1469598103934665603ull;
+                for (int i = 0; i < nLen; ++i) {
+                    h ^= static_cast<u64>(static_cast<unsigned char>(szBuf[i]));
+                    h *= 1099511628211ull;
+                }
+                for (int i = 0; i < s_nNumFmtSeen; ++i)
+                    if (s_arNumFmtSeen[i] == h)
+                        return;
+                s_arNumFmtSeen[s_nNumFmtSeen++] = h;
+                PRINT("[d3hack-numfmt] X%d %s= \"%s\"  (longest digit run %d)", r,
+                      bWide ? "utf16 " : "", szBuf, nMax)
+                return;
+            }
         };
     };
 
@@ -197,7 +284,12 @@ namespace d3 {
         // TODO: scale based on output target (res hack).
         // FontStringGetRenderedSizeHook::
         //     InstallAtSymbol("sym_font_string_get_rendered_size");
-        if (global_config.debug.active) {
+        // d3hack-custom: NumberFormatProbe lives on this hook, so it must install for the
+        // probe too -- not only under debug.active, which is not even present in the
+        // shipped config. A flag that switches a feature on has to appear in that
+        // feature's install condition; four things in this fork were dead today for
+        // exactly this reason.
+        if (global_config.debug.active || global_config.rare_cheats.number_format_probe) {
             FontStringDrawHook::
                 InstallAtSymbol("sym_font_string_draw_03ff50");
             FontStringDrawHook::
