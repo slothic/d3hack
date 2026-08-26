@@ -3172,6 +3172,17 @@ namespace d3 {
                 const int nFl  = LrFloorOf(snoW);
                 if (nFl > 0 && nA2 == 1)
                     MapArrivedAtFloor(nFl);
+
+                // d3hack-custom: forget the rift tileset when a NON-rift world is created.
+                // Load-bearing, so it sits outside the WorldGenProbe gate below.
+                //
+                // s_snoAssignedMap is what GreaterRiftDensityRiftsOnly tests, and it was never
+                // cleared -- so after one rift it would name that rift's map forever and the
+                // gate would treat town as a rift, which is the exact thing the setting exists
+                // to prevent. Both a rift tileset and an X1_LR_Level_NN floor world count as
+                // "in a rift"; anything else ends it.
+                if (RiftMapName(snoW) == nullptr && nFl <= 0)
+                    s_snoAssignedMap = 0;
             }
 
             if (!global_config.rare_cheats.world_gen_probe)
@@ -5642,15 +5653,30 @@ namespace d3 {
             if (nMul <= 1)
                 return;
 
-            const int nGR = TrueGRLevel();
-            if (global_config.rare_cheats.gr_density_rifts_only && nGR <= 0) {
-                // Logged too: if generation runs before the tier is set, the gate would silently
-                // do nothing, and the log is how that gets noticed rather than guessed at.
+            // GreaterRiftDensityRiftsOnly tests the MAP, not the tier.
+            //
+            // It used to be `TrueGRLevel() <= 0`, which is -1 at this call site in every log
+            // ever recorded -- so switching the setting ON disabled density everywhere,
+            // including in the rifts it was meant to restrict it to. The skip message even
+            // told you to turn the setting off, which was correct advice for a broken gate and
+            // is why it never read as a bug.
+            //
+            // s_snoAssignedMap is the honest signal: RiftMapAssign (0x4BC450) stores it before
+            // generation and only ever stores a tileset RiftMapName() recognises, and
+            // WorldCreateProbe now zeroes it when a non-rift world is created.
+            //
+            // Ordering caveat, from the logs and not assumed: this hook fires BEFORE the
+            // [d3hack-wc] CREATE line for the same floor. So a town generation that runs
+            // before the create that clears the flag can still see the previous rift's map.
+            // The line below reports the decision every time, which is how that gets caught if
+            // it happens rather than argued about.
+            const int  nGR     = TrueGRLevel();
+            const bool bInRift = (s_snoAssignedMap != 0);
+            if (global_config.rare_cheats.gr_density_rifts_only && !bInRift) {
                 if (s_nDensityLogs < 8) {
                     ++s_nDensityLogs;
-                    PRINT("[d3hack-density] skipped: gr=%d groups=%u (set "
-                          "GreaterRiftDensityRiftsOnly=false if this is a rift)",
-                          nGR, static_cast<unsigned>(ctx->W[27]))
+                    PRINT("[d3hack-density] skipped, not a rift world: groups=%u (gr=%d)",
+                          static_cast<unsigned>(ctx->W[27]), nGR)
                 }
                 return;
             }
@@ -10850,8 +10876,12 @@ namespace d3 {
             // WorldCreateProbe also carries the map overlay's ARRIVAL signal (arg2 == 1 on a
             // rift level world), so it must install whenever the overlay is on -- not only when
             // the diagnostic is. The rest of the probes stay behind WorldGenProbe.
+            // Also required by GreaterRiftDensityRiftsOnly: this hook is what CLEARS
+            // s_snoAssignedMap when you leave a rift, and without it the gate would treat town
+            // as a rift forever.
             if (global_config.rare_cheats.world_gen_probe ||
-                global_config.rare_cheats.map_name_overlay) {
+                global_config.rare_cheats.map_name_overlay ||
+                global_config.rare_cheats.gr_density_rifts_only) {
                 WorldCreateProbe::InstallAtOffset(0xD956C);
             }
             if (global_config.rare_cheats.damage_bonus_probe) {

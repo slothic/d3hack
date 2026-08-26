@@ -231,7 +231,7 @@ struct PatchConfig {
         bool   wells_as_pools          = false;// d3hack-custom: every spawned Health Well becomes a Pool of Reflection instead -- actor SNO 138989 rewritten to 373463 in the level-area spawn data
         bool   well_spawn_probe        = false;// d3hack-custom: name every actor SNO the level-area populator places, once each. Use it to find well variants the swap misses.
         int    gr_density_multiplier   = 1;    // d3hack-custom: multiply the number of spawn groups placed per level area (1 = stock, 3 = triple trash density)
-        bool   gr_density_rifts_only   = true; // d3hack-custom: apply the density multiplier only inside a Greater Rift. Turn off if the log shows the hook firing with gr=-1 during rift generation.
+        bool   gr_density_rifts_only   = true; // d3hack-custom: apply the density multiplier only inside a rift, leaving town and the open world at stock. Tests the assigned rift tileset, not the rift TIER -- the tier is not set yet when worldgen runs, which is why this setting used to switch density off everywhere instead of restricting it.
         bool   rift_level_dump         = false;// d3hack-custom: dump the TieredLootRunLevels asset through GBAssetGet -- the GR ladder AllGBIDsOfType cannot see. Hunting the Orek's Dream weight.
         bool   rift_table_dump         = false;// d3hack-custom: log GB_LOOTRUN_QUEST_TIERS (0x27) and GB_TIERED_LOOT_RUN_LEVELS (0x31) once. Where a curated-rift weight would live.
         bool   monster_affix_dump      = false;// d3hack-custom: log every GB_MONSTER_AFFIXES record once, with a name->gbid roll call, to find the field that gates elite-affix selection
