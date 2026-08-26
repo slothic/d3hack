@@ -289,6 +289,13 @@ namespace d3 {
         // shipped config. A flag that switches a feature on has to appear in that
         // feature's install condition; four things in this fork were dead today for
         // exactly this reason.
+        // Install confirmation, because the probe on this hook produced NOTHING -- not even
+        // its own first-call line -- and with no install line "never installed", "condition
+        // false" and "installed but never called" were indistinguishable. That ambiguity has
+        // now cost a run on five separate features in this fork.
+        PRINT("[d3hack-numfmt] utility debug hooks running (debug.active=%d probe=%d)",
+              global_config.debug.active ? 1 : 0,
+              global_config.rare_cheats.number_format_probe ? 1 : 0)
         if (global_config.debug.active || global_config.rare_cheats.number_format_probe) {
             FontStringDrawHook::
                 InstallAtSymbol("sym_font_string_draw_03ff50");
@@ -296,6 +303,7 @@ namespace d3 {
                 InstallAtSymbol("sym_font_string_draw_03e5b0");
             FontStringDrawHook::
                 InstallAtSymbol("sym_font_string_draw_0010c8");
+            PRINT_LINE("[d3hack-numfmt] font draw hooks installed at 0x03FF50 / 0x03E5B0 / 0x0010C8");
         }
 
         if (global_config.debug.enable_oe_notification_hook) {
