@@ -436,6 +436,13 @@ WHAT YOU PULLED, AND WHAT DIED
     a rare pack or a Rift Guardian, and another when it dies.
         CombatLog = true                  false = off
 
+    Needs [gui] Enabled = true. Visible can stay false -- that gives you the
+    HUD without the menu and without the overlay taking your input.
+
+    Map names do NOT appear here. They have their own small panel under the
+    minimap, because the map you are standing in is state you want to glance
+    at, not an event that scrolls away. Set MapNameOverlay = false to hide it.
+
     The monster name is coloured by rarity -- blue champion, yellow rare,
     pink guardian -- and dimmer once it is dead. Elite affixes are listed
     after the name and coloured by what they actually do to you:
