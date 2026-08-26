@@ -3349,12 +3349,34 @@ namespace d3 {
     // not written down anywhere -- playing is the only way to enumerate it.
     inline bool s_bPlanDumpPending = false;
 
+    // !! THIS HOOK ARMS THE SUBSTITUTION. It is not a diagnostic. !!
+    //
+    // It used to return early unless WorldGenProbe was on, which meant s_bPlanDumpPending was
+    // never set, which meant RiftPlanDump did nothing -- so BannedRiftMaps was completely dead
+    // for every user who did not also switch on a debug flag that is not even present in the
+    // shipped config.toml and defaults to false in code. Bans resolved, the readiness line
+    // printed, and not one floor was ever examined.
+    //
+    // This is the THIRD time this exact mistake has been made on this feature. The install site
+    // below already carries a comment saying "gating it on the diagnostic meant turning
+    // WorldGenProbe off silently disabled banning" -- the install was fixed and the trigger was
+    // left behind. Only the verbose per-query line is a diagnostic; the flag is the feature.
     HOOK_DEFINE_INLINE(RiftPlanQuery) {
         static void Callback(exl::hook::InlineCtx *ctx) {
-            if (!global_config.rare_cheats.world_gen_probe)
-                return;
             if (ctx->W[9] == 0)
                 s_bPlanDumpPending = true;
+
+            // Liveness. Without this, "no plan dump" cannot be told apart from "the hook never
+            // installed" -- the ambiguity that made the bug above survive two rounds of looking
+            // straight at it.
+            {
+                static int s_nSeen = 0;
+                if (++s_nSeen == 1)
+                    PRINT_LINE("[d3hack-plan] plan query hook is LIVE (0x816E98)");
+            }
+
+            if (!global_config.rare_cheats.world_gen_probe)
+                return;
             static int s_nLog = 0;
             if (s_nLog < 40) {
                 ++s_nLog;
@@ -10904,6 +10926,13 @@ namespace d3 {
                 global_config.rare_cheats.rift_map_substitute) {
                 RiftPlanQuery::InstallAtOffset(0x816E98);   // sets the once-per-rift trigger
                 RiftPlanDump::InstallAtOffset(0x816EAC);
+                // Install confirmation, because this pair carries the FEATURE. Silence from a
+                // hook with no install line proves nothing, and that is precisely how the
+                // WorldGenProbe trigger gate went unnoticed.
+                PRINT("[d3hack-plan] plan hooks installed at 0x816E98 / 0x816EAC "
+                      "(substitute=%d probe=%d)",
+                      global_config.rare_cheats.rift_map_substitute ? 1 : 0,
+                      global_config.rare_cheats.world_gen_probe ? 1 : 0)
             }
             if (global_config.rare_cheats.world_gen_probe) {
                 RiftPlanAppendProbe::InstallAtOffset(0x8174AC);
