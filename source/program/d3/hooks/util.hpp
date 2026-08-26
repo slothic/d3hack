@@ -3608,6 +3608,32 @@ namespace d3 {
         }
     }
 
+    // d3hack-custom: which suffix the GAME would print for a value.
+    //
+    // Not log1000. The game rolls to the next tier when the mantissa would reach 10000, so
+    // tier n spans [1e(3n+1), 1e(3n+4)) -- M covers 1e7..1e10, B covers 1e10..1e13. Checked
+    // against nine real damage numbers out of the log and it agrees with all of them.
+    //
+    //     0 = none   1 = K   2 = M   3 = B   4 = T   5 = Q   6 = Qi ...
+    inline auto NumberTierOf(double flValue) -> int {
+        if (flValue < 1.0e4)
+            return 0;
+        int    n   = 1;
+        double lim = 1.0e7;
+        while (flValue >= lim && n < 16) {
+            ++n;
+            lim *= 1000.0;
+        }
+        return n;
+    }
+
+    // Biggest tier actually dealt. Reset at every world entry -- see ResetDamageTierPeak --
+    // so moving to a floor you outgrow recalibrates, instead of one lucky crit hiding
+    // everything for the rest of the session.
+    inline int s_nDamageTierPeak = 0;
+
+    inline void ResetDamageTierPeak() { s_nDamageTierPeak = 0; }
+
     // d3hack-custom: THE NUMBER ABBREVIATOR. Already bound, and named.
     //
     //     FormatTruncatedNumber(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
@@ -3630,6 +3656,46 @@ namespace d3 {
         static auto Callback(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
             -> CRefString {
             CRefString tOut = Orig(flValue, bUseMillions, bIncludeSpecialChar);
+
+            // ---- SHOW ONLY THE TOP N MAGNITUDES ------------------------------------------
+            //
+            // Once you hit for T, the M numbers are noise; at Q the B numbers are. Hide
+            // anything more than N-1 tiers below the biggest you have actually dealt.
+            //
+            // The tier is the one the GAME would print, not log1000 -- it rolls at a mantissa
+            // of 10000, so 4.07e9 is still M and 4.37e10 is B. Verified against nine real
+            // damage numbers from the log; a log1000 tier disagrees with the game on every
+            // value between 1e9 and 1e10 and would hide the wrong things.
+            //
+            // Caller-matched to +0xB8968. That is the case the number-format dispatcher at
+            // 0xB88E0 uses for floating combat text, and it was the ONLY caller across a full
+            // Greater Rift. Matching it keeps this away from the character sheet and every
+            // other number in the UI -- blanking a stat panel would be a far worse bug than
+            // the noise this removes.
+            if (global_config.rare_cheats.damage_number_tiers > 0) {
+                const u64 uFrom = reinterpret_cast<u64>(__builtin_return_address(0)) -
+                                  exl::util::modules::GetTargetStart();
+                if (uFrom == 0xB8968ull) {
+                    const float flMag  = (flValue < 0.0f) ? -flValue : flValue;
+                    const int   nTier  = NumberTierOf(static_cast<double>(flMag));
+                    if (nTier > s_nDamageTierPeak)
+                        s_nDamageTierPeak = nTier;
+                    const int nFloor =
+                        s_nDamageTierPeak - global_config.rare_cheats.damage_number_tiers;
+                    if (nTier <= nFloor) {
+                        if (global_config.rare_cheats.number_format_probe) {
+                            static int s_nLog = 0;
+                            if (s_nLog < 6) {
+                                ++s_nLog;
+                                PRINT("[d3hack-numfmt] HIDE \"%s\" (tier %d, peak %d, floor %d)",
+                                      tOut.str(), nTier, s_nDamageTierPeak, nFloor)
+                            }
+                        }
+                        tOut = "";
+                        return tOut;
+                    }
+                }
+            }
 
             // ---- THE FEATURE: keep going past the game's top tier -------------------------
             //
@@ -11457,7 +11523,8 @@ namespace d3 {
             // WorldGenProbe off silently disabled banning. The other three are pure
             // diagnostics and stay behind the probe flag.
             if (global_config.rare_cheats.number_format_probe ||
-                global_config.rare_cheats.big_number_suffixes) {
+                global_config.rare_cheats.big_number_suffixes ||
+                global_config.rare_cheats.damage_number_tiers > 0) {
                 NumberFormatProbeHook::InstallAtFuncPtr(FormatTruncatedNumber);
                 PRINT("[d3hack-numfmt] FormatTruncatedNumber hooked at 0x34C8D0 (suffixes=%d "
                       "probe=%d)",

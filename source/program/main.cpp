@@ -266,6 +266,7 @@ namespace d3 {
             d3::MapFloatsFlush();              // d3hack-custom: never from world-gen
             d3::ReportSubstitutionReadiness(); // d3hack-custom: say up front if the config can work
             d3::ResetDensityLogs();            // d3hack-custom: per-world budget, not per-boot
+            d3::ResetDamageTierPeak();         // d3hack-custom: recalibrate the hide floor
             d3::DumpMonsterAffixes();          // d3hack-custom
             d3::DisableMonsterAffixes();       // d3hack-custom
             d3::DumpRiftTables();              // d3hack-custom
