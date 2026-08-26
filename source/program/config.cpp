@@ -467,6 +467,7 @@ namespace {
             t.insert("MapNameOverlay", config.rare_cheats.map_name_overlay);
             t.insert("RiftSpawnProbe", config.rare_cheats.rift_spawn_probe);
             t.insert("NumberFormatProbe", config.rare_cheats.number_format_probe);
+            t.insert("BigNumberSuffixes", config.rare_cheats.big_number_suffixes);
             t.insert("MapDensityOverrides", config.rare_cheats.map_density_overrides);
             t.insert("EliteEventProbe", config.rare_cheats.elite_event_probe);
             t.insert("CameraObserver", static_cast<s64>(config.rare_cheats.camera_observer));
@@ -688,6 +689,7 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         rare_cheats.map_name_overlay        = ReadBool(*section, {"MapNameOverlay"}, rare_cheats.map_name_overlay);
         rare_cheats.rift_spawn_probe        = ReadBool(*section, {"RiftSpawnProbe"}, rare_cheats.rift_spawn_probe);
         rare_cheats.number_format_probe     = ReadBool(*section, {"NumberFormatProbe"}, rare_cheats.number_format_probe);
+        rare_cheats.big_number_suffixes     = ReadBool(*section, {"BigNumberSuffixes"}, rare_cheats.big_number_suffixes);
         rare_cheats.map_density_overrides   = ReadString(*section, {"MapDensityOverrides"}, rare_cheats.map_density_overrides);
         rare_cheats.elite_event_probe       = ReadBool(*section, {"EliteEventProbe"}, rare_cheats.elite_event_probe);
         rare_cheats.camera_observer         = ReadI32(*section, {"CameraObserver"}, rare_cheats.camera_observer, 0, 0x500);

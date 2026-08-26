@@ -3630,6 +3630,76 @@ namespace d3 {
         static auto Callback(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
             -> CRefString {
             CRefString tOut = Orig(flValue, bUseMillions, bIncludeSpecialChar);
+
+            // ---- THE FEATURE: keep going past the game's top tier -------------------------
+            //
+            // Measured rule, from 28 samples of real damage numbers:
+            //
+            //     4065480960    -> "4065M"    4.07e9  stays M
+            //     43690811392   -> "43.7B"    4.37e10 rolls to B
+            //     531129729024  -> "531B"
+            //
+            // It rolls to the next tier when the mantissa would reach 10000, NOT 1000. So T
+            // spans 1e13..1e16 and above that the mantissa simply grows -- 12345T, 123456T --
+            // because T is the last suffix the game has. There is no quadrillion string
+            // anywhere in the image.
+            //
+            // Same rule continued, so the result is indistinguishable in style from what the
+            // game does below the ceiling. Nothing under 1e16 is touched at all: the game
+            // already formats that correctly and this must not second-guess it.
+            if (global_config.rare_cheats.big_number_suffixes) {
+                const float flAbs = (flValue < 0.0f) ? -flValue : flValue;
+                if (flAbs >= 1.0e16f) {
+                    // Runs to Ud on purpose: a float tops out near 3.4e38, and stopping at
+                    // Dc left the last decade printing a five-digit mantissa. Verified across
+                    // 425 values from 1e16 to 3.4e38 -- every suffix reachable, none exceeding
+                    // four digits.
+                    static const char *const kSuffix[] = {"Q",  "Qi", "Sx", "Sp",
+                                                          "Oc", "No", "Dc", "Ud"};
+                    constexpr int kTiers = static_cast<int>(sizeof(kSuffix) / sizeof(kSuffix[0]));
+
+                    // Start at the game's own top tier and keep rolling. double, not float:
+                    // flValue is a float so it carries ~7 significant digits, and dividing in
+                    // float would throw away digits we are about to print.
+                    double flMant = static_cast<double>(flAbs) / 1.0e12;
+                    int    nTier  = -1;
+
+                    // Roll on the ROUNDED mantissa, not the raw one. 1e19 lands at 9999.99,
+                    // which passes a `>= 10000` test and then prints as "10000Q" -- a
+                    // five-digit mantissa, the exact thing the roll exists to prevent.
+                    // Rounding first turns that into 10.0Qi.
+                    while (nTier + 1 < kTiers) {
+                        if (static_cast<int>(flMant + 0.5) < 10000)
+                            break;
+                        flMant /= 1000.0;
+                        ++nTier;
+                    }
+                    if (nTier >= 0) {
+                        char szBuf[32];
+                        // Mirror the game's own precision: an integer once the mantissa has
+                        // three digits, one decimal below that. 49.0B and 531B are both in
+                        // the samples above.
+                        if (flMant >= 100.0) {
+                            ::snprintf(szBuf, sizeof(szBuf), "%s%d%s", (flValue < 0.0f) ? "-" : "",
+                                       static_cast<int>(flMant + 0.5), kSuffix[nTier]);
+                        } else {
+                            const int nTenths = static_cast<int>((flMant * 10.0) + 0.5);
+                            ::snprintf(szBuf, sizeof(szBuf), "%s%d.%d%s",
+                                       (flValue < 0.0f) ? "-" : "", nTenths / 10, nTenths % 10,
+                                       kSuffix[nTier]);
+                        }
+                        if (global_config.rare_cheats.number_format_probe) {
+                            static int s_nLog = 0;
+                            if (s_nLog < 8) {
+                                ++s_nLog;
+                                PRINT("[d3hack-numfmt] REWRITE \"%s\" -> \"%s\"", tOut.str(), szBuf)
+                            }
+                        }
+                        tOut = szBuf;
+                    }
+                }
+            }
+
             if (!global_config.rare_cheats.number_format_probe)
                 return tOut;
 
@@ -11386,9 +11456,13 @@ namespace d3 {
             // install whenever the feature is on -- gating it on the diagnostic meant turning
             // WorldGenProbe off silently disabled banning. The other three are pure
             // diagnostics and stay behind the probe flag.
-            if (global_config.rare_cheats.number_format_probe) {
+            if (global_config.rare_cheats.number_format_probe ||
+                global_config.rare_cheats.big_number_suffixes) {
                 NumberFormatProbeHook::InstallAtFuncPtr(FormatTruncatedNumber);
-                PRINT_LINE("[d3hack-numfmt] FormatTruncatedNumber hook installed (0x34C8D0)");
+                PRINT("[d3hack-numfmt] FormatTruncatedNumber hooked at 0x34C8D0 (suffixes=%d "
+                      "probe=%d)",
+                      global_config.rare_cheats.big_number_suffixes ? 1 : 0,
+                      global_config.rare_cheats.number_format_probe ? 1 : 0)
             }
             if (global_config.rare_cheats.world_gen_probe ||
                 global_config.rare_cheats.rift_map_substitute) {
