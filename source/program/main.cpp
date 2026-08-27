@@ -261,6 +261,8 @@ namespace d3 {
             d3::PatchRamaladniTargetTypes();   // d3hack-custom
             d3::ShiftSetBonusTiers();          // d3hack-custom
             d3::InspectSetBonuses();           // d3hack-custom
+            d3::InspectParagonBonuses();       // d3hack-custom
+            d3::PatchParagonStatValues();      // d3hack-custom
             d3::NameSnoList();                 // d3hack-custom
             d3::MapFloatsLoadIfNeeded();       // d3hack-custom: file I/O on THIS thread only
             d3::MapFloatsFlush();              // d3hack-custom: never from world-gen

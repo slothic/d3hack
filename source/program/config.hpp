@@ -28,6 +28,11 @@
     X(DarkAlchemy, true, true, "")                 \
     X(NestingPortals, false, false, "")
 
+// d3hack-custom: ceiling for ParagonMainStatPerPoint / ParagonVitalityPerPoint.
+// File scope rather than a struct member because rare_cheats is an UNNAMED struct, and
+// C++ forbids static data members there.
+inline constexpr float kParagonPerPointMax = 650.0f;
+
 struct PatchConfig {
     bool initialized   = false;
     bool defaults_only = true;
@@ -74,14 +79,42 @@ struct PatchConfig {
 
         ExtraConfig extra {};
 
-        static constexpr float kAspectRatio          = 16.0f / 9.0f;
+        static constexpr float kAspectRatio          = 16.0f / 9.0f;  // stock; stays the default
+        static constexpr float kAspectRatioMin       = 1.0f;
+        static constexpr float kAspectRatioMax       = 4.0f;
         static constexpr float kHandheldScaleMin     = 40.0f;
         static constexpr float kHandheldScaleMax     = 100.0f;
         static constexpr float kHandheldScaleStep    = 5.0f;
         static constexpr float kHandheldScaleDefault = 80.0f;
 
-        static constexpr u32 WidthForHeight(u32 height) {
-            return static_cast<u32>(height * kAspectRatio);
+        // d3hack-custom: configurable output aspect ratio. This was a hardcoded 16:9
+        // constant, which is the single reason the resolution hack could not do ultrawide.
+        // Stock 16:9 remains the default -- nothing moves unless AspectRatio is set.
+        //
+        // NOTE: WidthForHeight is no longer static. Every call site is an instance call
+        // (OutputWidthPx / OutputHandheldWidthPx / ClampTextureWidthPx here, and
+        // resolution.WidthForHeight in PatchResolutionTargets), which is why that is safe.
+        float aspect_ratio = kAspectRatio;
+
+        constexpr float AspectRatio() const {
+            return (aspect_ratio >= kAspectRatioMin && aspect_ratio <= kAspectRatioMax)
+                       ? aspect_ratio
+                       : kAspectRatio;
+        }
+
+        constexpr bool AspectRatioIsStock() const {
+            const float d = AspectRatio() - kAspectRatio;
+            return (d > -0.0005f) && (d < 0.0005f);
+        }
+
+        // IEEE-754 bits of the aspect ratio, for the MOVZ/MOVK pair that builds the HUD
+        // aspect constant in W10 (0x0E7868 / 0x0E786C). BOTH halves have to be patched:
+        // 16:9 and 32:9 happen to share a mantissa (they differ only by a power of two),
+        // so a patch that only rewrites the exponent works for 32:9 and nothing else.
+        constexpr u32 AspectRatioBits() const { return __builtin_bit_cast(u32, AspectRatio()); }
+
+        constexpr u32 WidthForHeight(u32 height) const {
+            return static_cast<u32>(static_cast<float>(height) * AspectRatio());
         }
 
         constexpr void SetTargetRes(u32 height) { target_resolution = height; }
@@ -256,6 +289,27 @@ struct PatchConfig {
         bool   set_bonus_any_weapon    = false;// d3hack-custom: apply a set bonus's damage multiplier regardless of the weapon equipped. Shadow's Mantle grants ITEM_POWER_PASSIVE[318386] = 60 (the 6000%) at all times, but folds it into MULTIPLICATIVE_DAMAGE_PERCENT_BONUS_FOR_SKILL[Impale] only when a melee weapon is held -- 61.0 with a melee weapon, 1.0 with a bow. This re-adds it.
         bool   damage_bonus_probe      = false;// d3hack-custom: log every write of the skill-damage-bonus attributes (0x4AC/0x4AD/0x5A7/0x5A8/0x5A9) with the skill SNO it is keyed to, the value and the caller. Diff a melee weapon against a bow to find where a set bonus's weapon gate lives.
         std::string sno_name_list      = "";   // d3hack-custom: comma-separated SNO numbers to resolve to names at world init, e.g. "484633, 423230". Powers are not in the generated sno.hpp, and naming them from a hook that runs on a worker thread is what crashed the first world-factory probe -- this does it at sInitializeWorld, where SNOToString is already known safe.
+        // d3hack-custom: main stat / Vitality granted per paragon point. 0 = leave the
+        // game's stock 5.0 alone. Written as a float straight into the bonus's script
+        // formula, so it is the real number the game multiplies by -- not a fixup applied
+        // afterwards.
+        //
+        // The 650 ceiling is DERIVED, not taste. Main stat is a float32 attribute
+        // (GameAttributeF), so the danger is not this value but the product:
+        //     max spendable points per core stat = 100000 x ParagonLimitFactor()
+        //     the factor tops out at 33 (ParagonStatCap = 1650)  ->  3,300,000 points
+        //     3,300,000 x 650 = 2.145e9, which is INT32_MAX
+        // So 650 is the largest per-point value that cannot produce a stat overflowing an
+        // int32 anywhere downstream, at ANY legal ParagonStatCap. It is deliberately
+        // independent of the current ParagonStatCap so that raising that later can never
+        // retroactively turn an already-saved config into an overflow.
+        //
+        // Separately: float32 holds exact integers only to 2^24 = 16,777,216. Above that the
+        // stat still works, it just quantises (step 2 at 33M, 4 at 67M, ...). That is a
+        // precision limit, not a failure, so it is documented rather than enforced.
+        float  paragon_mainstat_per_point = 0.0f;
+        float  paragon_vitality_per_point = 0.0f;
+        bool        paragon_bonus_inspect = false;// d3hack-custom: dump all 28 GB_PARAGON_BONUSES records -- name, both caps, all 4 AttributeSpecifiers. Read-only. Finds where the per-point stat amount lives.
         std::string set_bonus_inspect  = "";   // d3hack-custom: dump the full GB_SET_ITEM_BONUSES record -- piece count and all 8 AttributeSpecifiers -- for every set whose name contains this substring, e.g. "Shadow". How you find which specifier carries a set bonus and what gates it. Empty = off.
         bool   rama_any_item           = false;// d3hack-custom: Ramaladni's Gift accepts any equippable target, boots included. DEFAULT false ON PURPOSE: it arms the six item-category flag writes that caused the Kadala icon bug, and a config.toml that fails to parse falls back to these defaults. Matches the live config, so nothing changes in practice.
         int    free_sockets            = 3;    // d3hack-custom: sockets every worn item has for free, costing no affix slot (0 = off)

@@ -11607,11 +11607,27 @@ namespace d3 {
             VarResHook::
                 InstallAtSymbol("sym_var_res_label");
         }
-        if (global_config.rare_cheats.active && global_config.rare_cheats.xp_gr_bonus > 1) {
+        // d3hack-custom: THIS CONDITION USED TO READ `&& xp_gr_bonus > 1`, and the block it
+        // opens runs for 310 lines and 62 hook installs. xp_gr_bonus DEFAULTS TO 1, so the
+        // entire block was dead unless the shipped config.toml -- which sets 2 -- was loaded.
+        // A user who set ExperienceMultiplierHighGR = 1 to decline bonus XP silently lost
+        // rift map bans, density, free sockets, follower no-aggro, Momentum, the big-number
+        // suffixes and every probe along with it.
+        //
+        // Every inner `if` below already carries its own correct condition; the outer gate was
+        // pure collateral. The one hook that genuinely wants xp_gr_bonus is gated on it
+        // directly, immediately below.
+        if (global_config.rare_cheats.active) {
             // d3hack-custom: the ENTRY of AddExperience, see the note on the hook. Skipping the
             // install removes the greater-rift bonus and the pool bonus together, which is the
             // A/B for "is the experience work responsible for this at all".
-            if (global_config.rare_cheats.xp_hook_mode > 0) {
+            // d3hack-custom: this ONE hook carries both the greater-rift multiplier and the
+            // pool-of-reflection bonus (see the note on the hook), so either being asked for
+            // is reason to install it. Previously the pool bonus was unreachable whenever
+            // ExperienceMultiplierHighGR was 1, because of the outer gate above.
+            if (global_config.rare_cheats.xp_hook_mode > 0 &&
+                (global_config.rare_cheats.xp_gr_bonus > 1 ||
+                 global_config.rare_cheats.pool_xp_percent > 0)) {
                 s_nXpHookMode = global_config.rare_cheats.xp_hook_mode;
                 HighGRExperience::InstallAtOffset(0x79FE6C);  // NOT 0x79FE40 or 0x79FE84
             }
@@ -11635,8 +11651,16 @@ namespace d3 {
                       global_config.rare_cheats.wells_as_pools ? 1 : 0,
                       global_config.rare_cheats.well_spawn_probe ? 1 : 0)
             }
+            // d3hack-custom: MapDensityOverrides and the three size-class multipliers are
+            // read ONLY by these two hooks, so they have to appear here or they do nothing at
+            // multiplier 1. Half of this was fixed once already -- the parse got a gate, the
+            // consumer did not.
             if (global_config.rare_cheats.gr_density_multiplier > 1 ||
-                global_config.rare_cheats.world_density_multiplier > 1) {
+                global_config.rare_cheats.world_density_multiplier > 1 ||
+                !global_config.rare_cheats.map_density_overrides.empty() ||
+                global_config.rare_cheats.rift_density_small > 0 ||
+                global_config.rare_cheats.rift_density_normal > 0 ||
+                global_config.rare_cheats.rift_density_large > 0) {
                 GreaterRiftDensity::InstallAtOffset(0x94BCAC);  // d3hack-custom
                 RiftFloorSpawnMultiply::InstallAtOffset(0x94C1B0);  // d3hack-custom
                 PRINT_LINE("[d3hack-riftdens] rift floor spawn multiplier installed at "
@@ -11650,6 +11674,9 @@ namespace d3 {
             // d3hack-custom: the rift map pick. Installed whenever there is a ban list OR
             // the probe is on -- banning must not depend on a diagnostic being enabled.
             if (!global_config.rare_cheats.banned_rift_maps.empty() ||
+                !global_config.rare_cheats.allowed_rift_maps.empty() ||
+                !global_config.rare_cheats.preferred_rift_maps.empty() ||
+                global_config.rare_cheats.rift_map_substitute ||
                 !global_config.rare_cheats.map_density_overrides.empty() ||
                 global_config.rare_cheats.prefer_low_fog ||
                 global_config.rare_cheats.map_name_overlay ||
@@ -11900,10 +11927,30 @@ namespace d3 {
                            "address, implicated in the world-entry crash. Turn "
                            "PoolOfReflectionTouchHook off if the game dies entering a world.");
             }
-            CanAddSockets::InstallAtOffset(0x4F6C90);  // d3hack-custom
-            AttrGetInt::InstallAtOffset(0x46FAB0);     // d3hack-custom
-            ItemHasNoSockets::InstallAtOffset(0x4F8790);  // d3hack-custom
-            ItemIsSocketable::InstallAtOffset(0x4F6BE0);  // d3hack-custom
+            // d3hack-custom: these four were unconditional inside the xp_gr_bonus block, so
+            // freeing that gate would otherwise have installed them for everyone.
+            //
+            // AttrGetInt sits on 0x46FAB0, one of the hottest getters in the game -- 80k+
+            // reads in a single combat session. It only ever serves these four features, so
+            // it is installed only when one of them is actually on.
+            if (global_config.rare_cheats.free_sockets > 0 ||
+                global_config.rare_cheats.follower_no_aggro ||
+                global_config.rare_cheats.infinite_shrine_buffs ||
+                global_config.rare_cheats.rama_any_item) {
+                AttrGetInt::InstallAtOffset(0x46FAB0);  // d3hack-custom
+            }
+            if (global_config.rare_cheats.rama_any_item) {
+                CanAddSockets::InstallAtOffset(0x4F6C90);  // d3hack-custom: carries the -1 override
+            }
+            // Diagnostics only. Between them these two emit 480 ungated PRINTs, and
+            // ItemIsSocketable is the predicate 0x1F2740 calls once per item while building a
+            // filtered list -- opening a full stash burns its whole 300-line budget in a single
+            // frame. PRINT is not cheap: two vsnprintf, a syscall, and a game-side file write
+            // per line, which this project has already measured as visible lag.
+            if (global_config.rare_cheats.item_socket_probe) {
+                ItemHasNoSockets::InstallAtOffset(0x4F8790);  // d3hack-custom
+                ItemIsSocketable::InstallAtOffset(0x4F6BE0);  // d3hack-custom
+            }
             // 0x4F44F0 is extremely hot (535 call sites); only hook it when probing.
             if (global_config.rare_cheats.item_socket_probe) {
                 ItemFlagTest::InstallAtOffset(0x4F44F0);     // d3hack-custom
@@ -11911,11 +11958,23 @@ namespace d3 {
                 ItemListFilter::InstallAtOffset(0x1F2740);   // d3hack-custom
                 ItemFilterSelect::InstallAtOffset(0x1F2600); // d3hack-custom
             }
-            PRINT("[d3hack-custom] xp x%d from GR %d, pools +%d%% each, <=%d levels per grant "
-                  "(hook 0x%X)",
-                  global_config.rare_cheats.xp_gr_bonus, global_config.rare_cheats.xp_gr_bonus_min_gr,
-                  global_config.rare_cheats.pool_xp_percent,
-                  global_config.rare_cheats.pool_xp_levels_per_grant, 0x79FE6C)
+            // d3hack-custom: report the hook ONLY when it was actually installed. This line
+            // used to print unconditionally, naming an address that the condition above may
+            // well have skipped -- the exact "a log line proves an install" ambiguity that has
+            // already cost this project several sessions.
+            if (global_config.rare_cheats.xp_hook_mode > 0 &&
+                (global_config.rare_cheats.xp_gr_bonus > 1 ||
+                 global_config.rare_cheats.pool_xp_percent > 0)) {
+                PRINT("[d3hack-custom] xp x%d from GR %d, pools +%d%% each, <=%d levels per grant "
+                      "(hook 0x%X)",
+                      global_config.rare_cheats.xp_gr_bonus, global_config.rare_cheats.xp_gr_bonus_min_gr,
+                      global_config.rare_cheats.pool_xp_percent,
+                      global_config.rare_cheats.pool_xp_levels_per_grant, 0x79FE6C)
+            } else {
+                PRINT_LINE("[d3hack-custom] experience hook NOT installed "
+                           "(needs ExperienceHookMode > 0 and either "
+                           "ExperienceMultiplierHighGR > 1 or PoolOfReflectionXpPercent > 0)");
+            }
         }
 
         // d3hack-custom: partial blood shard pickup, and the probes that watch it.

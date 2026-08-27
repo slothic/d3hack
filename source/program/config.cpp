@@ -541,6 +541,9 @@ namespace {
             t.insert("MaxParagonLevel", config.rare_cheats.max_paragon_level);
             t.insert("ParagonStatCap", config.rare_cheats.paragon_stat_cap);
             t.insert("ParagonNoReset", config.rare_cheats.paragon_no_reset);
+            t.insert("ParagonBonusInspect", config.rare_cheats.paragon_bonus_inspect);
+            t.insert("ParagonMainStatPerPoint", static_cast<double>(config.rare_cheats.paragon_mainstat_per_point));
+            t.insert("ParagonVitalityPerPoint", static_cast<double>(config.rare_cheats.paragon_vitality_per_point));
             root.insert("rare_cheats", std::move(t));
         }
 
@@ -683,6 +686,10 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         rare_cheats.damage_bonus_probe       = ReadBool(*section, {"DamageBonusProbe"}, rare_cheats.damage_bonus_probe);
         rare_cheats.sno_name_list            = ReadString(*section, {"SnoNameList"}, rare_cheats.sno_name_list);
         rare_cheats.set_bonus_inspect        = ReadString(*section, {"SetBonusInspect"}, rare_cheats.set_bonus_inspect);
+        rare_cheats.paragon_bonus_inspect    = ReadBool(*section, {"ParagonBonusInspect"}, rare_cheats.paragon_bonus_inspect);
+        // Ceiling derived in config.hpp: 3.3M max spendable points x 650 = INT32_MAX.
+        rare_cheats.paragon_mainstat_per_point = static_cast<float>(ReadDouble(*section, {"ParagonMainStatPerPoint"}, rare_cheats.paragon_mainstat_per_point, 0.0, static_cast<double>(kParagonPerPointMax)));
+        rare_cheats.paragon_vitality_per_point = static_cast<float>(ReadDouble(*section, {"ParagonVitalityPerPoint"}, rare_cheats.paragon_vitality_per_point, 0.0, static_cast<double>(kParagonPerPointMax)));
         rare_cheats.banned_rift_maps         = ReadString(*section, {"BannedRiftMaps"}, rare_cheats.banned_rift_maps);
         rare_cheats.allowed_rift_maps        = ReadString(*section, {"AllowedRiftMaps"}, rare_cheats.allowed_rift_maps);
         rare_cheats.preferred_rift_maps      = ReadString(*section, {"PreferredRiftMaps"}, rare_cheats.preferred_rift_maps);

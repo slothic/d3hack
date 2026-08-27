@@ -35,6 +35,8 @@ namespace d3 {
     void PatchRamaladniTargetTypes();  // d3hack-custom
     void NameSnoList();         // d3hack-custom
     void InspectSetBonuses();   // d3hack-custom
+    void InspectParagonBonuses();  // d3hack-custom
+    void PatchParagonStatValues();  // d3hack-custom
     void ShiftSetBonusTiers();  // d3hack-custom
     void DumpMonsterAffixes();  // d3hack-custom
     void DisableMonsterAffixes();  // d3hack-custom

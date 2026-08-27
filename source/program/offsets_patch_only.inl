@@ -96,6 +96,8 @@
     {util::ModuleIndex::Main, 0x0E7860, "patch_resolution_targets_02_movk"},  // MOVK | X8 | output height
     {util::ModuleIndex::Main, 0x0E785C, "patch_resolution_targets_03_movz"},  // MOVZ | X9 | fallback width
     {util::ModuleIndex::Main, 0x0E7864, "patch_resolution_targets_04_movk"},  // MOVK | X9 | fallback height
+    {util::ModuleIndex::Main, 0x0E7868, "patch_resolution_targets_14_movz"},  // MOVZ | W10 | HUD aspect ratio, low half
+    {util::ModuleIndex::Main, 0x0E786C, "patch_resolution_targets_15_movk"},  // MOVK | W10 | HUD aspect ratio, high half
     {util::ModuleIndex::Main, 0x03CBBC, "patch_resolution_targets_05_movk"},  // MOVK | X9 | flMinPercent
     {util::ModuleIndex::Main, 0x03CBCC, "patch_resolution_targets_06_movz"},  // unused | MOVZ | W8 | flMaxPercent
     {util::ModuleIndex::Main, 0x03CBD4, "patch_resolution_targets_07_movk"},  // MOVK | X9 | flPercentIncr

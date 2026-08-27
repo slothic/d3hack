@@ -253,6 +253,24 @@ namespace d3 {
         jest.Patch<ins::Movz>(PatchTable("patch_resolution_targets_03_movz"), reg::X9, fallbackW);
         jest.Patch<ins::Movk>(PatchTable("patch_resolution_targets_04_movk"), reg::X9, fallbackH, ins::ShiftValue_32);
 
+        // d3hack-custom: HUD/UI aspect constant, same block (GFXNX64NVN::Init).
+        //   0x0E7868: MOVZ W10, #0x8E39
+        //   0x0E786C: MOVK W10, #0x3FE3, LSL#16      -> 0x3FE38E39 = 1.7777f (16:9)
+        // Patching the display-mode pair above WITHOUT this gives an ultrawide backbuffer
+        // with a 16:9 HUD stretched across it. Both are required.
+        //
+        // Deliberately skipped when the ratio is stock 16:9, so a default build writes
+        // exactly the bytes it always has. The instruction identity here came from a
+        // third-party 32:9 pchtxt, NOT from disassembling our own binary -- so this
+        // unverified write stays confined to users who opted into a wide ratio.
+        if (!resolution.AspectRatioIsStock()) {
+            const u32 aspectBits = resolution.AspectRatioBits();
+            jest.Patch<ins::Movz>(PatchTable("patch_resolution_targets_14_movz"), reg::W10, (aspectBits & 0xFFFFu));
+            jest.Patch<ins::Movk>(PatchTable("patch_resolution_targets_15_movk"), reg::W10, (aspectBits >> 16), ins::ShiftValue_16);
+            PRINT("[d3hack-aspect] output %ux%u  aspect %d/1000  bits %08X", outW, outH,
+                  static_cast<int>(resolution.AspectRatio() * 1000.0f), aspectBits)
+        }
+
         // if (global_config.resolution_hack.min_res_scale >= 100.0f) {
         // Too late to patch cdecl defaults at this point, and prefer the hook
         //     /* VariableResRWindowData->flMinPercent = 0.70f - 0x03CBBC: MOVK reg::X9, #0x3F33, LSL#48 (CGameVariableResInitializeForRWindow) */
@@ -2092,6 +2110,233 @@ namespace d3 {
             }
         }
         PRINT("[d3hack-setb] inspected %d record(s) matching \"%s\"", nShown, sFilter.c_str())
+    }
+
+    // d3hack-custom: dump the whole GB_PARAGON_BONUSES table (type 0x28, 28 records).
+    //
+    // Layout was derived OFFLINE, not guessed, by calibrating DiIiS's ParagonBonusesTable
+    // file layout against the set-bonus record whose runtime layout is already verified:
+    //
+    //   SetItemBonus  file Set=264 -> runtime +0x18, Count=268 -> +0x1C, Attr[8]=272 -> +0x20
+    //   so runtime = file - 240 (the 256-byte Name collapses to a 16-byte header).
+    //
+    // Applying the same transform to ParagonBonusesTable:
+    //   file Hash=256 -> +0x10   I1=260 -> +0x14   I2=264 -> +0x18   (unnamed)=268 -> +0x1C
+    //   file AttributeSpecifiers[4]=272 -> +0x20, 24 bytes each
+    //   file Category=368 -> +0x80   Index=372 -> +0x84   HeroClass=376 -> +0x88
+    //
+    // +0x18/+0x1C corroborate independently: the retired RaiseParagonStatLimits fingerprinted
+    // the per-stat caps at exactly those two offsets, and 0x5271F0 picks between them with a
+    // csel on attribute 0x5CC (PARAGONCAPENABLED). Two derivations, same answer.
+    //
+    // AttributeSpecifier is attr(4) + snoParam(4) + 8 bytes + Formula (a serialized int
+    // array). The per-point stat amount is somewhere in that tail -- whether it is a plain
+    // constant we can scale or script bytecode we must intercept is EXACTLY what this dump
+    // exists to answer. Read-only; nothing is written.
+    void InspectParagonBonuses() {
+        if (!global_config.rare_cheats.paragon_bonus_inspect)
+            return;   // the only silent early-out: not asked for
+        static bool s_bDone = false;
+        if (s_bDone)
+            return;
+        if (GBRecordGet == nullptr || GBGetHandlePool == nullptr || GBGetHandlePool() == nullptr) {
+            PRINT("[d3hack-para] not ready: GBRecordGet=%d GBGetHandlePool=%d pool=%d",
+                  GBRecordGet != nullptr, GBGetHandlePool != nullptr,
+                  (GBGetHandlePool != nullptr && GBGetHandlePool() != nullptr))
+            return;
+        }
+
+        std::vector<GBID> ids;
+        AllGBIDsOfType(GB_PARAGON_BONUSES, ids);
+        PRINT("[d3hack-para] enumerated %u paragon-bonus record(s), expected 28",
+              static_cast<u32>(ids.size()))
+        if (ids.empty())
+            return;   // not latched yet -- try again next world
+        s_bDone = true;
+
+        int nShown = 0;
+        for (GBID g : ids) {
+            struct { s32 e; s32 g; } k {0x28, static_cast<s32>(g)};
+            u8  o[16] {};
+            s32 f    = 1;
+            u8 *pRec = reinterpret_cast<u8 *>(GBRecordGet(&k, reinterpret_cast<void **>(o), &f));
+            if (pRec == nullptr)
+                continue;
+
+            const s32 nCapA  = *reinterpret_cast<const s32 *>(pRec + 0x18);
+            const s32 nCapB  = *reinterpret_cast<const s32 *>(pRec + 0x1C);
+            const s32 nCat   = *reinterpret_cast<const s32 *>(pRec + 0x80);
+            const s32 nIndex = *reinterpret_cast<const s32 *>(pRec + 0x84);
+            const s32 nClass = *reinterpret_cast<const s32 *>(pRec + 0x88);
+
+            const char *szName = GbidStringAll(static_cast<GBID>(g));
+            PRINT("[d3hack-para] %-28s gbid=%08X cat=%d idx=%d class=%d capA=%d capB=%d",
+                  (szName != nullptr && szName[0] != 0) ? szName : "?",
+                  static_cast<u32>(g), nCat, nIndex, nClass, nCapA, nCapB)
+
+            for (int i = 0; i < 4; ++i) {
+                const u8 *pSpec  = pRec + 0x20 + i * 24;
+                const s32 nAttr  = *reinterpret_cast<const s32 *>(pSpec);
+                const s32 nParam = *reinterpret_cast<const s32 *>(pSpec + 4);
+                if (nAttr == 0 && nParam == 0)
+                    continue;   // empty slot
+                // The whole 24-byte specifier, so the formula tail is visible verbatim.
+                PRINT("[d3hack-para]   spec%d attr=0x%03X param=%d  "
+                      "%02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X",
+                      i, static_cast<u32>(nAttr), nParam,
+                      pSpec[8], pSpec[9], pSpec[10], pSpec[11],
+                      pSpec[12], pSpec[13], pSpec[14], pSpec[15],
+                      pSpec[16], pSpec[17], pSpec[18], pSpec[19],
+                      pSpec[20], pSpec[21], pSpec[22], pSpec[23])
+                // The 24-byte specifier decodes as:
+                //   +0x00 attr  +0x04 param  +0x08 formula PTR (8)  +0x10 file off  +0x14 size
+                // Confirmed by the rec0 word dump: +0x34 held 0x0C and +0x38 was the
+                // FFFFFFFF that starts spec1, so the stride is 24 and the size is in BYTES.
+                // Follow the pointer -- the per-point amount is in these ints.
+                const u64 uFormula = *reinterpret_cast<const u64 *>(pSpec + 8);
+                const u32 uBytes   = *reinterpret_cast<const u32 *>(pSpec + 0x14);
+                if (uFormula > 0x1000ull && uBytes >= 4u && uBytes <= 256u && (uBytes % 4u) == 0u) {
+                    const s32 *pF = reinterpret_cast<const s32 *>(uFormula);
+                    const u32  nI = uBytes / 4u;
+                    // Fixed argument slots rather than a formatted buffer: the interesting
+                    // formulas are 3 ints, and this cannot overrun.
+                    PRINT("[d3hack-para]     formula @%lX n=%u : %d %d %d %d %d %d",
+                          uFormula, nI,
+                          (nI > 0u) ? pF[0] : 0, (nI > 1u) ? pF[1] : 0,
+                          (nI > 2u) ? pF[2] : 0, (nI > 3u) ? pF[3] : 0,
+                          (nI > 4u) ? pF[4] : 0, (nI > 5u) ? pF[5] : 0)
+                } else {
+                    PRINT("[d3hack-para]     formula ptr/size rejected: %lX size=%u",
+                          uFormula, uBytes)
+                }
+            }
+            ++nShown;
+        }
+        // Words 0x00-0x40 of the first record, as a cross-check that the derived layout is
+        // actually right. If capA/capB above do not look like caps, read this instead.
+        if (!ids.empty()) {
+            struct { s32 e; s32 g; } k0 {0x28, static_cast<s32>(ids[0])};
+            u8   o0[16] {};
+            s32  f0    = 1;
+            auto *pRec0 = reinterpret_cast<u8 *>(GBRecordGet(&k0, reinterpret_cast<void **>(o0), &f0));
+            if (pRec0 != nullptr) {
+                const s32 *w = reinterpret_cast<const s32 *>(pRec0);
+                for (int b = 0; b < 4; ++b)
+                    PRINT("[d3hack-para] rec0 +%02X: %08X %08X %08X %08X",
+                          b * 16, static_cast<u32>(w[b * 4 + 0]), static_cast<u32>(w[b * 4 + 1]),
+                          static_cast<u32>(w[b * 4 + 2]), static_cast<u32>(w[b * 4 + 3]))
+            }
+        }
+        PRINT("[d3hack-para] dumped %d record(s)", nShown)
+    }
+
+    // d3hack-custom: set how much main stat / Vitality one paragon point grants.
+    //
+    // The amount is NOT a field in the GameBalance record. Each AttributeSpecifier carries a
+    // pointer to a small script formula, and for every paragon bonus that formula is exactly
+    // three ints: { 6, <float bits>, 0 }. Slot 1 is the per-point value as an IEEE-754 float.
+    // Confirmed by dumping all 28 records -- every decoded value matched stock D3 exactly
+    // (main stat and Vitality 5.0, movement 0.005 = 0.5%/pt capped at 50 pts = 25%, crit
+    // damage 0.01, crit chance 0.001), which is what makes the decode trustworthy rather
+    // than merely plausible.
+    //
+    // Specifier layout, verified against a raw word dump of record 0:
+    //     +0x00 attr   +0x04 param   +0x08 formula ptr (8)   +0x10 file off   +0x14 size
+    //
+    // We write through the formula pointer, NOT into the record. The record from GBRecordGet
+    // is a refcounted temporary -- that is why the old RaiseParagonStatLimits was retired --
+    // but the pointer it carries aims at the shared, loaded asset blob, which is stable.
+    //
+    // Targets by attribute id, so class-specific records are all covered without name
+    // matching: 0x00A Strength, 0x00B Dexterity, 0x00C Intelligence (7 class records between
+    // them), 0x00D Vitality. Resistance_All is also 5.0/pt but is attr 0x060 and NOT core,
+    // so it is deliberately untouched.
+    void PatchParagonStatValues() {
+        // Clamp again here rather than trusting the parse. A config.toml that fails to
+        // parse falls back to CODE defaults, and this project has already been bitten by a
+        // patch that was armed only by a config value -- so the guard lives next to the
+        // write, not only at the door.
+        const float flCap  = kParagonPerPointMax;
+        float       flMain = global_config.rare_cheats.paragon_mainstat_per_point;
+        float       flVita = global_config.rare_cheats.paragon_vitality_per_point;
+        if (flMain > flCap || flVita > flCap) {
+            PRINT("[d3hack-parav] value(s) above the %d/pt ceiling clamped "
+                  "(main %d -> %d, vit %d -> %d); see kParagonPerPointMax",
+                  static_cast<int>(flCap), static_cast<int>(flMain),
+                  static_cast<int>((flMain > flCap) ? flCap : flMain),
+                  static_cast<int>(flVita),
+                  static_cast<int>((flVita > flCap) ? flCap : flVita))
+            if (flMain > flCap) flMain = flCap;
+            if (flVita > flCap) flVita = flCap;
+        }
+        if (flMain <= 0.0f && flVita <= 0.0f)
+            return;   // 0 = leave stock; the only silent early-out
+        static bool s_bDone = false;
+        if (s_bDone)
+            return;
+        if (GBRecordGet == nullptr || GBGetHandlePool == nullptr || GBGetHandlePool() == nullptr) {
+            PRINT("[d3hack-parav] not ready: GBRecordGet=%d pool=%d", GBRecordGet != nullptr,
+                  (GBGetHandlePool != nullptr && GBGetHandlePool() != nullptr))
+            return;
+        }
+
+        std::vector<GBID> ids;
+        AllGBIDsOfType(GB_PARAGON_BONUSES, ids);
+        if (ids.empty()) {
+            PRINT("[d3hack-parav] no paragon records yet, retrying next world (%d)", 0)
+            return;
+        }
+        s_bDone = true;
+
+        int nHit = 0;
+        int nMiss = 0;
+        for (GBID g : ids) {
+            struct { s32 e; s32 g; } k {0x28, static_cast<s32>(g)};
+            u8  o[16] {};
+            s32 f    = 1;
+            u8 *pRec = reinterpret_cast<u8 *>(GBRecordGet(&k, reinterpret_cast<void **>(o), &f));
+            if (pRec == nullptr)
+                continue;
+
+            const u8 *pSpec = pRec + 0x20;              // spec0 only: every paragon bonus uses one
+            const s32 nAttr = *reinterpret_cast<const s32 *>(pSpec);
+
+            float flWant = 0.0f;
+            if ((nAttr == 0x00A || nAttr == 0x00B || nAttr == 0x00C) && flMain > 0.0f)
+                flWant = flMain;
+            else if (nAttr == 0x00D && flVita > 0.0f)
+                flWant = flVita;
+            else
+                continue;
+
+            const u64 uFormula = *reinterpret_cast<const u64 *>(pSpec + 8);
+            const u32 uBytes   = *reinterpret_cast<const u32 *>(pSpec + 0x14);
+            if (uFormula <= 0x1000ull || uBytes < 12u || uBytes > 256u) {
+                ++nMiss;
+                continue;
+            }
+            s32 *pF = reinterpret_cast<s32 *>(uFormula);
+            if (pF[0] != 6) {   // opcode we decoded; anything else is a layout we do not know
+                PRINT("[d3hack-parav] attr 0x%03X: unexpected opcode %d, left alone",
+                      static_cast<u32>(nAttr), pF[0])
+                ++nMiss;
+                continue;
+            }
+
+            const float flOld = __builtin_bit_cast(float, pF[1]);
+            pF[1]             = __builtin_bit_cast(s32, flWant);
+            // Read back to prove the store landed. NOTE: this proves the MEMORY changed, not
+            // that the game reads this copy -- only the stat in-game proves that.
+            const float flNow = __builtin_bit_cast(float, pF[1]);
+            const char *szName = GbidStringAll(static_cast<GBID>(g));
+            PRINT("[d3hack-parav] %-26s attr=0x%03X  %d/1000 -> %d/1000 (readback %d/1000)",
+                  (szName != nullptr && szName[0] != 0) ? szName : "?",
+                  static_cast<u32>(nAttr), static_cast<int>(flOld * 1000.0f),
+                  static_cast<int>(flWant * 1000.0f), static_cast<int>(flNow * 1000.0f))
+            ++nHit;
+        }
+        PRINT("[d3hack-parav] paragon per-point values written: %d record(s), %d skipped",
+              nHit, nMiss)
     }
 
     void ShiftSetBonusTiers() {

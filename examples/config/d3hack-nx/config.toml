@@ -139,6 +139,9 @@ MaxGreaterRiftLevel = 500
 MaxParagonLevel = 2000000000
 MovementSpeedMultiplier = 1.0
 NoCooldowns = false
+ParagonMainStatPerPoint = 0.0
+ParagonVitalityPerPoint = 0.0
+ParagonBonusInspect = false
 ParagonNoReset = true
 ParagonStatCap = 250
 PoolOfReflectionLevelsPerGrant = 25
@@ -193,6 +196,7 @@ XpCensus = false
 ShardProbe = false
 CameraFieldDump = false
 [resolution_hack]
+AspectRatio = 1.7778
 ClampTextureResolution = 1152
 ExperimentalScheduler = false
 MaxResScale = 100.0

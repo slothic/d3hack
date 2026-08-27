@@ -146,6 +146,12 @@ namespace d3::config_schema {
             "HandheldScale",
             "HandheldOutputScale",
         };
+        static constexpr std::array<std::string_view, 4> kKeysReshackAspectRatio = {
+            "AspectRatio",
+            "OutputAspectRatio",
+            "Aspect",
+            "DisplayAspectRatio",
+        };
         static constexpr std::array<std::string_view, 4> kKeysReshackClampTextureResolution = {
             "ClampTextureResolution",
             "ClampTextureHeight",
@@ -225,6 +231,18 @@ namespace d3::config_schema {
                 cfg.resolution_hack.min_res_scale = cfg.resolution_hack.max_res_scale;
             }
         }
+        static auto GetReshackAspectRatio(const PatchConfig &cfg) -> float { return cfg.resolution_hack.aspect_ratio; }
+        static void SetReshackAspectRatio(PatchConfig &cfg, float v) {
+            // A bogus value falls back to stock 16:9 rather than producing a display mode
+            // the compositor will refuse -- a black screen is the worst failure here,
+            // because the config that caused it is not reachable from inside the game.
+            if (!(v >= PatchConfig::ResolutionHackConfig::kAspectRatioMin &&
+                  v <= PatchConfig::ResolutionHackConfig::kAspectRatioMax)) {
+                cfg.resolution_hack.aspect_ratio = PatchConfig::ResolutionHackConfig::kAspectRatio;
+                return;
+            }
+            cfg.resolution_hack.aspect_ratio = v;
+        }
         static auto GetReshackClampTextureResolution(const PatchConfig &cfg) -> u32 { return cfg.resolution_hack.clamp_texture_resolution; }
         static void SetReshackClampTextureResolution(PatchConfig &cfg, u32 v) {
             if (v == 0u) {
@@ -238,7 +256,7 @@ namespace d3::config_schema {
             );
         }
 
-        static constexpr std::array<Entry, 26> k_entries = {{
+        static constexpr std::array<Entry, 27> k_entries = {{
             // overlays
             {.section = "overlays", .key = "SectionEnabled", .keys = kKeysSectionEnabled, .kind = ValueKind::Bool, .restart = RestartPolicy::RuntimeSafe, .tr_label = "gui.overlays_enabled", .label_fallback = "Enabled##overlays", .get_bool = &GetOverlaysActive, .set_bool = &SetOverlaysActive},
             {.section = "overlays", .key = "BuildLockerWatermark", .keys = kKeysBuildLockerWatermark, .kind = ValueKind::Bool, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.overlays_buildlocker", .label_fallback = "Build locker watermark", .get_bool = &GetOverlaysBuildLocker, .set_bool = &SetOverlaysBuildLocker},
@@ -270,6 +288,7 @@ namespace d3::config_schema {
             {.section = "resolution_hack", .key = "MinResScale", .keys = kKeysReshackMinResScale, .kind = ValueKind::Float, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.resolution_min_scale", .label_fallback = "Minimum resolution scale", .min_f = 10.0f, .max_f = 100.0f, .step_f = 1.0f, .get_float = &GetReshackMinResScale, .set_float = &SetReshackMinResScale},
             {.section = "resolution_hack", .key = "MaxResScale", .keys = kKeysReshackMaxResScale, .kind = ValueKind::Float, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.resolution_max_scale", .label_fallback = "Maximum resolution scale", .min_f = 10.0f, .max_f = 100.0f, .step_f = 1.0f, .get_float = &GetReshackMaxResScale, .set_float = &SetReshackMaxResScale},
             {.section = "resolution_hack", .key = "ClampTextureResolution", .keys = kKeysReshackClampTextureResolution, .kind = ValueKind::U32, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.resolution_clamp_texture", .label_fallback = "Clamp texture height (0=off, 100-9999)", .min_u = 0, .max_u = PatchConfig::ResolutionHackConfig::kClampTextureResolutionMax, .step_u = 1, .get_u32 = &GetReshackClampTextureResolution, .set_u32 = &SetReshackClampTextureResolution},
+            {.section = "resolution_hack", .key = "AspectRatio", .keys = kKeysReshackAspectRatio, .kind = ValueKind::Float, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.resolution_aspect_ratio", .label_fallback = "Aspect ratio (1.7778=16:9, 2.3333=21:9, 3.5556=32:9)", .min_f = PatchConfig::ResolutionHackConfig::kAspectRatioMin, .max_f = PatchConfig::ResolutionHackConfig::kAspectRatioMax, .step_f = 0.0001f, .get_float = &GetReshackAspectRatio, .set_float = &SetReshackAspectRatio},
             {.section = "resolution_hack", .key = "SpoofDocked", .keys = kKeysReshackSpoofDocked, .kind = ValueKind::Bool, .restart = RestartPolicy::RestartRequired, .tr_label = "gui.resolution_spoof_docked", .label_fallback = "Spoof docked", .get_bool = &GetReshackSpoofDocked, .set_bool = &SetReshackSpoofDocked},
             {.section = "resolution_hack", .key = "ExperimentalScheduler", .keys = kKeysReshackExpScheduler, .kind = ValueKind::Bool, .restart = RestartPolicy::RuntimeSafe, .tr_label = "gui.resolution_exp_scheduler", .label_fallback = "Experimental scheduler", .get_bool = &GetReshackExpScheduler, .set_bool = &SetReshackExpScheduler},
         }};

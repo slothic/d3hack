@@ -66,6 +66,8 @@ that controls it.
    Paragon level cap 20000 -> 2 billion .......... MaxParagonLevel = 2000000000
    Points allowed in a single stat ............... ParagonStatCap = 250
    Over-limit categories are not wiped on load ... ParagonNoReset = true
+   Main stat per paragon point (stock 5) ......... ParagonMainStatPerPoint = 30.0
+   Vitality per paragon point (stock 5) .......... ParagonVitalityPerPoint = 30.0
 
  ALTAR OF RITES
    Eight seals take crafting materials instead
@@ -84,6 +86,7 @@ that controls it.
    Pull the camera back .......................... ViewDolly = 35.0
    Combat log: what you pulled, and what died .... CombatLog = true
    Gears of Dreadlands keeps its Momentum ........ MomentumAutoFireEvery = 4
+   Ultrawide / any aspect ratio .................. AspectRatio = 2.3889
 
  FOLLOWERS
    Monsters ignore Scoundrel and Enchantress ..... FollowerNoAggro = true
@@ -376,6 +379,55 @@ HIGH GREATER RIFTS RAISE THE RANK, THEY DO NOT REPLACE THE ROLL
 
 
 ---------------------------------------------------------------------------
+ PARAGON PER-POINT VALUES
+---------------------------------------------------------------------------
+
+HOW MUCH ONE PARAGON POINT IS WORTH
+    Stock is 5 main stat and 5 Vitality per point. These set it to anything.
+        ParagonMainStatPerPoint = 30.0    0 = leave stock 5 alone
+        ParagonVitalityPerPoint = 30.0    0 = leave stock 5 alone
+
+    Main stat means Strength, Dexterity and Intelligence together -- the game
+    keeps a separate record per class, and all seven are covered. Resistance
+    All is also 5 per point but is NOT a core stat, so it is left alone.
+
+    The value is written straight into the bonus's own script formula, so it is
+    the real number the game multiplies by. Nothing is corrected afterwards and
+    nothing recomputes it per frame.
+
+WHY 650 IS THE MAXIMUM
+    Not taste -- arithmetic. The most points that can ever go into one core stat
+    is 100,000 x 33 = 3,300,000 (33 being the largest ParagonStatCap scale), and
+    3,300,000 x 650 is INT32_MAX. So 650 is the largest per-point value that
+    cannot overflow a 32-bit integer anywhere downstream, at ANY ParagonStatCap.
+    Values above it are clamped and the log says so.
+
+    Separately, main stat is a 32-bit FLOAT, which holds exact whole numbers only
+    up to 16,777,216. Past that it still works, it just counts in steps -- 2 at
+    33 million, 4 at 67 million, and so on. That is a precision limit, not a
+    failure, so it is not enforced. If you want every number exact, keep
+    points x per-point under 16.7 million.
+
+WHAT ACTUALLY LIMITS A HIGH-PARAGON CHARACTER
+    Not this setting -- the SPEND cap. Each core stat accepts 100,000 points,
+    scaled by ParagonStatCap, and the non-core categories are hard-stopped at
+    200 points each no matter how much paragon you have. Everything else spills
+    into Core. So at 2 billion paragon only a few million points are spendable,
+    and this setting is what turns those into a number worth having.
+
+    ParagonStatCap only produces 50 x (1 + 2^k), so the values that actually do
+    something are 150, 250, 450, 850 and 1650. Anything else silently becomes
+    250.
+
+PARAGON BONUS INSPECTOR
+        ParagonBonusInspect = true        false = off, and it is off by default
+
+    Dumps all 28 paragon bonus records at world entry -- name, both caps, and
+    every attribute specifier with its decoded per-point value. Read-only.
+    This is how the values above were found, and it is the thing to turn on if a
+    future patch moves them.
+
+---------------------------------------------------------------------------
  PARAGON AND GEMS
 ---------------------------------------------------------------------------
 
@@ -482,6 +534,50 @@ MONSTERS IGNORE THE SCOUNDREL AND THE ENCHANTRESS
     to hold a pack. The two affected followers can still be clicked, healed
     and buffed; only monster targeting changes.
 
+
+---------------------------------------------------------------------------
+ DISPLAY
+---------------------------------------------------------------------------
+
+ULTRAWIDE AND OTHER ASPECT RATIOS
+    The resolution hack could always change the output RESOLUTION, but the
+    aspect ratio itself was a hardcoded 16:9 constant -- so asking for a wider
+    output just stretched the same 16:9 image. This makes it a setting.
+        [resolution_hack]
+        AspectRatio = 1.7778              16:9 -- stock, and the default
+        AspectRatio = 2.3704              2560x1080   (sold as 21:9)
+        AspectRatio = 2.3889              3440x1440   (sold as 21:9)
+        AspectRatio = 3.5556              5120x1440   (sold as 32:9)
+
+    The value is your target width divided by its height, to 4 decimals.
+    The marketing names are not exact and not interchangeable -- both of the
+    panels sold as 21:9 above want a different number. Use the division, not
+    the label.
+
+    Two things have to move together, and both are handled for you: the docked
+    display mode, and the HUD aspect constant. Patching only the first is what
+    gives you an ultrawide backbuffer with a 16:9 HUD stretched across it.
+
+    Needs [resolution_hack] SectionEnabled = true, and a restart. Set
+    OutputTarget to the vertical resolution you want -- the width follows from
+    the ratio, so 1440 at 3.5556 is 5120x1440.
+
+    At 16:9 the aspect code is skipped entirely and the game is patched exactly
+    as it always was, so the default build is byte-for-byte unchanged.
+
+    A value outside 1.0-4.0 falls back to 16:9 rather than asking for a display
+    mode the compositor will refuse. A black screen is the worst failure here,
+    because the setting that caused it lives on the SD card, not in the in-game
+    menu you would need to reach to undo it.
+
+    Wide ratios raise memory use. If the game dies on load at a large output,
+    raise the emulator's DRAM layout to 8GB.
+
+    Credit: the HUD aspect instruction offsets came from Fl4sh9174's
+    Switch-Emulator-Ultrawide-FPS-Mods pchtxt collection.
+    Do NOT install those pchtxt files alongside d3hack. They write the same two
+    instructions this setting writes, and whichever applies last silently wins.
+    Most of that pack also targets 2.7.7.92380, which is not this game build.
 
 ---------------------------------------------------------------------------
  BLOOD SHARDS
