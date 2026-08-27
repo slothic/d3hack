@@ -4528,6 +4528,20 @@ namespace d3 {
     // verdict to 0 for exactly the tick MomentumAutoFire relabelled, and logs the code it
     // replaced so the next session knows which refusal Strafe->primary actually produces.
     inline bool s_bMomForceCast   = false;   // set by the relabel, consumed at 0x856164
+
+    // d3hack-custom: does the forced cast reach the grant, or is it diverted later?
+    //
+    // Measured 2026-08-27: the override lands cleanly -- twenty consecutive
+    // "verdict 4 -> 0" for X1_DemonHunter_EntanglingShot (361936), a real primary -- and
+    // Momentum still decays straight through it, 20 down to 1. So the verdict was necessary
+    // and is not sufficient.
+    //
+    // The chain is meant to be 0x856164 -> 0x8522E0 (w3 == 0) -> bl 0x9A4400 at 0x852424,
+    // which is frame [12] of the recorded grant stack. This flag survives from the override to
+    // that call, so one run says which half is failing: if the flag arrives, the broadcast
+    // happens and the listener is refusing us for some other reason; if it never arrives, the
+    // cast is diverted somewhere between the two and that stretch is what to read next.
+    inline bool s_bMomForcedInFlight = false;
     inline u32  s_uMomVerdictLive = 0;       // liveness: every 0x856080 verdict seen
     inline s32  s_nMomLastVerdict = -1;      // the code that was overridden, for the report
 
@@ -4801,6 +4815,29 @@ namespace d3 {
     // The liveness counter is unconditional and deliberately outside the feature gate: silence
     // from this hook with no counter would not distinguish "never installed" from "installed
     // and never armed", which is the trap that has cost this project six runs.
+    // d3hack-custom: read-only. Sits on the grant broadcast itself.
+    HOOK_DEFINE_INLINE(MomentumGrantReach) {
+        static void Callback(exl::hook::InlineCtx *ctx) {
+            (void) ctx;
+            if (global_config.rare_cheats.momentum_autofire_every <= 0)
+                return;
+            {
+                static int s_nAll = 0;
+                if (++s_nAll == 1)
+                    PRINT_LINE("[d3hack-mreach] grant broadcast hook is LIVE (0x852424)");
+            }
+            if (!s_bMomForcedInFlight)
+                return;
+            s_bMomForcedInFlight = false;
+            static int s_nLog = 0;
+            if (s_nLog < 12) {
+                ++s_nLog;
+                PRINT("[d3hack-mreach] #%d FORCED CAST REACHED the grant broadcast "
+                      "(momentum=%d)", s_nLog, s_nMomentumNow)
+            }
+        }
+    };
+
     HOOK_DEFINE_INLINE(MomentumForceVerdict) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             ++s_uMomVerdictLive;
@@ -4820,6 +4857,7 @@ namespace d3 {
                 return;   // already a fresh cast -- nothing to force
 
             ctx->W[0] = 0;
+            s_bMomForcedInFlight = true;
 
             // Report the refusal code that was overridden. 0 and 1 are legal outcomes; 2..8
             // are 0x84EB40's refusal codes, so whichever number shows up here names exactly
@@ -4899,6 +4937,32 @@ namespace d3 {
     HOOK_DEFINE_INLINE(BuffStackProbeId) {
         static void Callback(exl::hook::InlineCtx *ctx) {
             const s32 nAttrEarly = static_cast<s32>(ctx->W[1]) & 0xFFF;
+
+            // d3hack-custom: the Greater Rift progress bar, on the generic setter.
+            //
+            // 0x524 never appeared on ACD_AttributesSetInt or ACD_AttributesSetFloat across a
+            // full rift -- and both liveness counters passed 100,000 writes, so that is a real
+            // negative rather than a hook that never ran. This is the third setter, the
+            // "generic path attrxref cannot see" that HANDOFF warns about, and it is where the
+            // Momentum counter was eventually found too.
+            //
+            // The value is logged both as an integer and as float bits, because whether the
+            // bar is 0..100 or 0.0..1.0 is exactly what has to be established before anything
+            // scales it.
+            if (global_config.rare_cheats.rift_progress_probe && nAttrEarly == 0x524) {
+                static int s_nProg = 0;
+                if (s_nProg < 40) {
+                    ++s_nProg;
+                    const u32 uRaw = static_cast<u32>(ctx->W[2]);
+                    float     flAs = 0.0f;
+                    __builtin_memcpy(&flAs, &uRaw, 4);
+                    PRINT("[d3hack-gprog] GENERIC 0x524 raw=%d asfloat=%d/1000 gr=%d "
+                          "caller +0x%lX",
+                          static_cast<int>(ctx->W[2]), static_cast<int>(flAs * 1000.0f),
+                          TrueGRLevel(),
+                          static_cast<u64>(ctx->X[30]) - exl::util::modules::GetTargetStart())
+                }
+            }
 
             // Track the live Momentum count UNCONDITIONALLY. It was previously assigned inside
             // the momentum_no_decay branch, so with that feature off the counter stayed 0 and
@@ -11641,6 +11705,9 @@ namespace d3 {
             // features at the top of HANDOFF.md).
             if (global_config.rare_cheats.momentum_autofire_every > 0) {
                 MomentumForceVerdict::InstallAtOffset(0x856164);
+                MomentumGrantReach::InstallAtOffset(0x852424);
+                PRINT_LINE("[d3hack-mreach] grant-reach probe installed at 0x852424 "
+                           "(read-only)");
                 PRINT_LINE("[d3hack-mforce] cast-verdict override installed at 0x856164 "
                            "(0x84EB40 refusal -> fresh cast for the relabelled tick)");
             }
@@ -11650,10 +11717,16 @@ namespace d3 {
             // auto-fire silently rejected every tick.
             if ((global_config.rare_cheats.momentum_no_decay ||
                  global_config.rare_cheats.momentum_autofire_every > 0 ||
-                 global_config.rare_cheats.momentum_duration_pct > 100) &&
+                 global_config.rare_cheats.momentum_duration_pct > 100 ||
+                 global_config.rare_cheats.rift_progress_probe) &&
                 !global_config.rare_cheats.buff_stack_probe) {
+                // RiftProgressProbe checks 0x524 inside this same callback, so it must
+                // appear in the install gate. A flag that switches a feature on has to be
+                // in that feature's install condition -- five shipped features in this
+                // file were dead for exactly that reason.
                 BuffStackProbeId::InstallAtOffset(0x69EDB8);
-                PRINT_LINE("[d3hack-momentum] Momentum decay hold installed at 0x69EDB8");
+                PRINT("[d3hack-momentum] id-setter hook installed at 0x69EDB8 (gprog=%d)",
+                      global_config.rare_cheats.rift_progress_probe ? 1 : 0)
             }
             if (global_config.rare_cheats.buff_stack_probe) {
                 PRINT("[d3hack-buffstack] symbols: SetInt=%d SetFloat=%d",
