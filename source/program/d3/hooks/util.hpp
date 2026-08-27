@@ -5002,15 +5002,31 @@ namespace d3 {
                         const s32  nCap = (s_nMomMaxSeen > 20) ? s_nMomMaxSeen : 20;
                         static int s_nWrite = 0;
                         ++s_nWrite;
+
+                        // HOLD, then BUILD. Granting alone was measured and is not enough:
+                        // at every-4th-write it produced six +1 grants while the counter fell
+                        // 20 -> 1, because the decay runs one to two points on EVERY write.
+                        // Adding occasionally against that is arithmetic that cannot win.
+                        //
+                        // So block the downward step first -- nPrev is the value the game last
+                        // stored, so writing it back holds the stack -- and then add on top
+                        // every Nth write. N tunes how fast it climbs, not whether it survives.
+                        s32 nWant = s_nMomentumNow;
+                        if (nPrev > 0 && nWant < nPrev)
+                            nWant = nPrev;
                         if ((s_nWrite % global_config.rare_cheats.momentum_autofire_every) == 0 &&
-                            s_nMomentumNow < nCap) {
-                            const s32 nWant = s_nMomentumNow + 1;
+                            nWant < nCap)
+                            ++nWant;
+                        if (nWant > nCap)
+                            nWant = nCap;
+
+                        if (nWant != s_nMomentumNow) {
                             ctx->W[2]       = static_cast<u64>(static_cast<u32>(nWant));
                             static int s_nG = 0;
-                            if (s_nG < 12) {
+                            if (s_nG < 16) {
                                 ++s_nG;
-                                PRINT("[d3hack-mgrant] #%d stack %d -> %d (cap %d)", s_nG,
-                                      s_nMomentumNow, nWant, nCap)
+                                PRINT("[d3hack-mgrant] #%d stack %d -> %d (was %d, cap %d)",
+                                      s_nG, s_nMomentumNow, nWant, nPrev, nCap)
                             }
                             s_nMomentumNow = nWant;
                         }
