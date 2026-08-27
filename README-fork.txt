@@ -682,11 +682,16 @@ NEW FEATURES
 
     What this means in practice:
 
-      * Naming maps in PreferredRiftMaps that Greater Rifts never use --
-        Battlefields of Eternity, Festering Woods, the Highlands, the
-        Wilderness, plain Tristram Fields -- will not work, and cannot
-        start working, because the game never rolls them there. Those are
-        Nephalem rift tilesets.
+      * ONLY 55 OF THE 164 MAPS EXIST IN GREATER RIFTS. The other 109 are
+        Nephalem-rift tilesets and the Greater Rift engine never rolls
+        them, so naming one in PreferredRiftMaps or AllowedRiftMaps cannot
+        do anything -- the name resolves fine, it simply never comes up.
+        Battlefields of Eternity, Festering Woods, the Highlands and the
+        Wilderness are all in that group and are common things to ask for.
+
+        rift-maps.txt marks every map GR or "nephalem only" in its last
+        column. That list comes from the game's own rift table, not from
+        observation, so it is exact.
 
       * MapDensityOverrides sets density per map, for the open tilesets
         that look bare at a multiplier tuned for corridors. It works from
