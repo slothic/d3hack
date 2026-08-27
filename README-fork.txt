@@ -83,6 +83,7 @@ that controls it.
  CAMERA AND UI
    Pull the camera back .......................... ViewDolly = 35.0
    Combat log: what you pulled, and what died .... CombatLog = true
+   Gears of Dreadlands keeps its Momentum ........ MomentumAutoFireEvery = 4
 
  FOLLOWERS
    Monsters ignore Scoundrel and Enchantress ..... FollowerNoAggro = true
@@ -145,6 +146,20 @@ THE "SOCKETS" AFFIX IS REMOVED FROM ALL ROLL TABLES
 ---------------------------------------------------------------------------
  SETS
 ---------------------------------------------------------------------------
+GEARS OF DREADLANDS KEEPS ITS MOMENTUM
+    Strafe auto-fires your last primary, but that shot never grants
+    Momentum -- so the stacks bleed away while you do the one thing the
+    set exists for.
+        MomentumAutoFireEvery = 4         0 = off
+    Blocks the decay and adds a stack every Nth write, so the number tunes
+    how fast the stacks climb rather than whether they survive. Capped at
+    the set's own 20. Stacks ratchet up and hold while you strafe.
+
+    Two older settings are still there and are not needed if the above is
+    on. MomentumNoDecay froze the count; MomentumDurationPercent stretches
+    the buff timer, which is worth having if the buff itself expires on
+    you rather than the stacks draining.
+
 
 SET BONUSES SHIFT DOWN ONE TIER
     The 4-piece bonus lands on 2 pieces, the 6-piece lands on 4. Two-tier
