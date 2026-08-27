@@ -4980,6 +4980,41 @@ namespace d3 {
                     s_nMomentumNow  = static_cast<s32>(ctx->W[2]);
                     if (s_nMomentumNow > s_nMomMaxSeen)
                         s_nMomMaxSeen = s_nMomentumNow;
+
+                    // ---- GRANT THE STACK HERE, on the game's own write --------------------
+                    //
+                    // Three attempts failed trying to make the game believe a primary was
+                    // fired: relabelling w3, injecting a synthetic call, and forcing the cast
+                    // verdict. The last was measured end to end -- the override landed twenty
+                    // times and the forced cast reached the grant broadcast at 0x852424 twelve
+                    // times -- and Momentum still decayed 8 -> 1 through it. Reaching the
+                    // broadcast is not what grants the stack.
+                    //
+                    // So stop faking the shot. Same technique that made MomentumNoDecay work:
+                    // w2 IS the value about to be stored, so raising it grants a stack through
+                    // the game's own write. No synthetic call, no new thread, nothing that can
+                    // refuse it.
+                    if (global_config.rare_cheats.momentum_autofire_every > 0) {
+                        // 20 is the set's maximum; s_nMomMaxSeen raises it if that is ever
+                        // wrong. SEEDED, not learned -- a cap starting at 0 would do nothing
+                        // until the player happened to build stacks by hand, which is the
+                        // "ships without its state" trap the rift float cache already hit.
+                        const s32  nCap = (s_nMomMaxSeen > 20) ? s_nMomMaxSeen : 20;
+                        static int s_nWrite = 0;
+                        ++s_nWrite;
+                        if ((s_nWrite % global_config.rare_cheats.momentum_autofire_every) == 0 &&
+                            s_nMomentumNow < nCap) {
+                            const s32 nWant = s_nMomentumNow + 1;
+                            ctx->W[2]       = static_cast<u64>(static_cast<u32>(nWant));
+                            static int s_nG = 0;
+                            if (s_nG < 12) {
+                                ++s_nG;
+                                PRINT("[d3hack-mgrant] #%d stack %d -> %d (cap %d)", s_nG,
+                                      s_nMomentumNow, nWant, nCap)
+                            }
+                            s_nMomentumNow = nWant;
+                        }
+                    }
                     // Trajectory, not a snapshot. Six "momentum=20" lines right after building
                     // to 20 manually proved nothing about whether the re-fire actually grants.
                     if (global_config.rare_cheats.momentum_autofire_every > 0) {
@@ -11703,7 +11738,12 @@ namespace d3 {
             // can reach `bl 0x8522E0`, so this hook is the half that makes the feature do
             // anything at all. Keep the key in the install condition (see the four dead
             // features at the top of HANDOFF.md).
-            if (global_config.rare_cheats.momentum_autofire_every > 0) {
+            // MomentumForceVerdict / MomentumGrantReach: DELIBERATELY NOT INSTALLED.
+            // Disproven by measurement 2026-08-27 -- the override landed twenty times, the
+            // forced cast reached the grant broadcast twelve times, and Momentum decayed
+            // 8 -> 1 anyway. It costs a real primary cast every N ticks and grants nothing.
+            // The grant happens at 0x69EDB8 now, on the game's own write.
+            if (false) {
                 MomentumForceVerdict::InstallAtOffset(0x856164);
                 MomentumGrantReach::InstallAtOffset(0x852424);
                 PRINT_LINE("[d3hack-mreach] grant-reach probe installed at 0x852424 "
