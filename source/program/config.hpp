@@ -309,6 +309,41 @@ struct PatchConfig {
         // precision limit, not a failure, so it is documented rather than enforced.
         float  paragon_mainstat_per_point = 0.0f;
         float  paragon_vitality_per_point = 0.0f;
+        float  stat_bonus_probe_value = 0.0f; // -1 = READ-ONLY (log the slots, write nothing -- use this to see whether a value survived a save/reload). d3hack-custom: value the StatBonusProbe writes into every *_BONUS slot. 0 = use the small distinctive per-stat values instead. Set large (e.g. 32000000000) to prove the slot carries a huge stat without the int32 wrap that ruins the base stats.
+        // d3hack-custom: flat main-stat / Vitality bonus, in the *_BONUS attribute slots.
+        //
+        // This is the route that carries a LARGE value safely. The four BASE stats
+        // (0x00A..0x00D) are read into 32-bit ints by 0x7D7510, which saturates at INT32_MAX
+        // and then wraps NEGATIVE and writes that back -- corrupting the hero. That function
+        // never touches the *_BONUS slots (0x012..0x015), and the game's own total formula
+        // includes them, so a value parked here reaches damage without ever passing through
+        // the truncating code.
+        //
+        // Measured in game: 32,000,000,000 written to every bonus slot produced a Dexterity
+        // total of 32,000,180,224 -- no wrap, no clamp, 15x past where the base path breaks.
+        // The residual ~6.9k drift is float32 rounding at that magnitude and is cosmetic.
+        //
+        // The slot is TRANSIENT: it reads 0 on every fresh load and does not survive a save.
+        // That is deliberate and good -- your save file is never modified. The cost is that
+        // the value must be re-applied on every world entry, which ApplyStatBonuses does.
+        float  stat_bonus_mainstat    = 0.0f; // Strength/Dexterity/Intelligence to add (0 = off)
+        float  stat_bonus_vitality    = 0.0f; // Vitality to add (0 = off)
+        // d3hack-custom: DamagePerMainStat / DamageMultiplier were REMOVED after measuring.
+        // The game already scales damage by main stat (1 point = +1% damage), so both
+        // double-counted a rule it applies itself -- three 1000-sample captures showed
+        // paragon alone moving damage 3.3-4.2x with them off. ParagonMainStatPerPoint is
+        // the correct and complete dial. See the SetBonusAnyWeapon note in hooks/util.hpp.
+        // d3hack-custom: capture N damage numbers and print a statistical summary, so two
+        // builds can be compared numerically instead of by eye. 0 = off.
+        //
+        // Hooks FormatTruncatedNumber, which receives the RAW FLOAT before any formatting or
+        // abbreviation -- so this measures the true value, not the "1.79 T" that gets drawn.
+        // That function also formats non-damage numbers, so the summary reports the top
+        // values separately: in combat the largest numbers on screen are damage.
+        int    damage_capture_samples = 0;
+        bool        paragon_points_probe  = false;// d3hack-custom: find how the player's paragon investment is readable. Logs Paragon_Bonus (0x522) across parameters and Paragon_Bonus_Points_Available (0x523). Needed to scale bonuses BY paragon instead of a flat number.
+        bool        damage_route_probe    = false;// d3hack-custom: find which attribute actually drives damage. Logs the derived chain (main stat -> armor/HP) then writes a test value into each damage-multiplier candidate in turn, logging weapon damage after each. Read the log to see which one moves it.
+        bool        stat_bonus_probe      = false;// d3hack-custom: one-shot test -- write a distinctive value into STRENGTH/DEXTERITY/INTELLIGENCE/VITALITY_BONUS and log whether the matching _TOTAL picks it up. Decides whether the bonus slots can carry a large stat without going through the code that truncates the base stats.
         bool        paragon_bonus_inspect = false;// d3hack-custom: dump all 28 GB_PARAGON_BONUSES records -- name, both caps, all 4 AttributeSpecifiers. Read-only. Finds where the per-point stat amount lives.
         std::string set_bonus_inspect  = "";   // d3hack-custom: dump the full GB_SET_ITEM_BONUSES record -- piece count and all 8 AttributeSpecifiers -- for every set whose name contains this substring, e.g. "Shadow". How you find which specifier carries a set bonus and what gates it. Empty = off.
         bool   rama_any_item           = false;// d3hack-custom: Ramaladni's Gift accepts any equippable target, boots included. DEFAULT false ON PURPOSE: it arms the six item-category flag writes that caused the Kadala icon bug, and a config.toml that fails to parse falls back to these defaults. Matches the live config, so nothing changes in practice.

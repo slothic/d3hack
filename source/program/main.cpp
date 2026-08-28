@@ -263,6 +263,12 @@ namespace d3 {
             d3::InspectSetBonuses();           // d3hack-custom
             d3::InspectParagonBonuses();       // d3hack-custom
             d3::PatchParagonStatValues();      // d3hack-custom
+            d3::ProbeStatBonusSlots();         // d3hack-custom
+            d3::ApplyStatBonuses();            // d3hack-custom
+            d3::ProbeDamageRoute();            // d3hack-custom
+            d3::ProbeParagonPoints();          // d3hack-custom
+            d3::InspectParagonBonuses();       // d3hack-custom
+            d3::PatchParagonStatValues();      // d3hack-custom
             d3::NameSnoList();                 // d3hack-custom
             d3::MapFloatsLoadIfNeeded();       // d3hack-custom: file I/O on THIS thread only
             d3::MapFloatsFlush();              // d3hack-custom: never from world-gen

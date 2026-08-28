@@ -2339,6 +2339,304 @@ namespace d3 {
               nHit, nMiss)
     }
 
+    // d3hack-custom: can the *_BONUS attributes carry a huge stat safely?
+    //
+    // THE QUESTION. The four BASE stats (0x00A Strength .. 0x00D Vitality) are read into
+    // 32-bit integers by 0x7D7510, which saturates at INT32_MAX and then wraps NEGATIVE and
+    // writes that back -- corrupting the character rather than merely clamping it. That is
+    // the only such site in the binary; every other consumer stays in float.
+    //
+    // 0x7D7510 touches ONLY the base four. It never reads 0x012..0x015 (the *_BONUS slots).
+    // The game's own total is built roughly as
+    //     Total = (Base + Stats_All_Bonus + Bonus + items) * multipliers
+    // so a value parked in the BONUS slot should reach damage through the game's own formula
+    // while never passing through the truncating code.
+    //
+    // If that holds, a large stat needs no patching at all -- just a different slot.
+    //
+    // CAVEAT THIS PROBE EXISTS TO SETTLE: that formula is read from the DiIiS server
+    // reimplementation, NOT from this binary. The Switch client's formula engine is built at
+    // runtime, so static analysis cannot confirm it. Hence: write a known value, read the
+    // total back, look.
+    //
+    // Distinct value per stat so one boot says which slots work:
+    //     Strength +11111   Dexterity +22222   Intelligence +33333   Vitality +44444
+    //
+    // Written ONCE, but logged on EVERY world entry: *_TOTAL may recompute lazily, so a
+    // second entry (a rift, a town portal) shows the settled value even if the immediate
+    // readback does not.
+    void ProbeStatBonusSlots() {
+        if (!global_config.rare_cheats.stat_bonus_probe)
+            return;   // the only silent early-out: not asked for
+
+        if (GetPrimaryPlayer == nullptr || ACDTryToGet == nullptr ||
+            ACD_AttributesGetFloat == nullptr || ACD_AttributesSetFloat == nullptr) {
+            PRINT("[d3hack-statb] symbols not bound: getPlayer=%d acdGet=%d getF=%d setF=%d",
+                  GetPrimaryPlayer != nullptr, ACDTryToGet != nullptr,
+                  ACD_AttributesGetFloat != nullptr, ACD_AttributesSetFloat != nullptr)
+            return;
+        }
+
+        ActorCommonData *pACD = ACDTryToGet(GetPrimaryPlayer());
+        if (pACD == nullptr) {
+            // Not an error: at sInitializeWorld the hero may not exist yet. Say so, so that
+            // silence is never ambiguous between "not ready" and "never ran".
+            PRINT("[d3hack-statb] player ACD not available yet -- will retry next world (%d)", 0)
+            return;
+        }
+
+        static bool s_bWritten = false;
+
+        struct StatRow {
+            const char *szName;
+            s32         nBase;
+            s32         nBonus;
+            s32         nTotal;
+            float       flTest;
+        };
+        static const StatRow kRows[] = {
+            {"Strength",     0x00A, 0x012, 0x00E, 11111.0f},
+            {"Dexterity",    0x00B, 0x013, 0x00F, 22222.0f},
+            {"Intelligence", 0x00C, 0x014, 0x010, 33333.0f},
+            {"Vitality",     0x00D, 0x015, 0x011, 44444.0f},
+        };
+
+        PRINT("[d3hack-statb] pass %s",
+              (global_config.rare_cheats.stat_bonus_probe_value < 0.0f) ? "READ-ONLY (observing, writing nothing)"
+                                                                        : (s_bWritten ? "READBACK (already written)" : "WRITE"))
+        for (const StatRow &r : kRows) {
+            const float flBase  = ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nBase)));
+            const float flBonus = ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nBonus)));
+            const float flTotal = ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nTotal)));
+
+            // A configured value overrides the small distinctive one, so the magnitude can be
+            // changed with a config edit and a relaunch -- no rebuild.
+            const float flWrite = (global_config.rare_cheats.stat_bonus_probe_value > 0.0f)
+                                      ? global_config.rare_cheats.stat_bonus_probe_value
+                                      : r.flTest;
+            // StatBonusProbeValue = -1 means OBSERVE ONLY. Without this, relaunching to check
+            // whether a value survived a save would overwrite the very thing being measured,
+            // and the result would be indistinguishable from our own write.
+            const bool bReadOnly = (global_config.rare_cheats.stat_bonus_probe_value < 0.0f);
+            if (!s_bWritten && !bReadOnly)
+                ACD_AttributesSetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nBonus)), flWrite);
+
+            const float flBonusNow = ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nBonus)));
+            const float flTotalNow = ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nTotal)));
+
+            // %f is avoided throughout this project; these are large whole numbers anyway.
+            // s64, not int: these values are expected to exceed INT32_MAX -- that is the
+            // whole point of the test, and an int cast here would print garbage and look
+            // like the write had failed.
+            PRINT("[d3hack-statb] %-13s base=%ld  bonus %ld -> %ld  total %ld -> %ld  (wrote %ld)",
+                  r.szName, static_cast<s64>(flBase),
+                  static_cast<s64>(flBonus), static_cast<s64>(flBonusNow),
+                  static_cast<s64>(flTotal), static_cast<s64>(flTotalNow),
+                  static_cast<s64>(flWrite))
+        }
+        s_bWritten = true;
+        PRINT("[d3hack-statb] if TOTAL moved by the written amount, the BONUS slot is the "
+              "route and no truncation patch is needed (%d)", 0)
+    }
+
+    // d3hack-custom: apply the flat stat bonus, EVERY world entry.
+    //
+    // Re-application is not optional. The *_BONUS slots reset to 0 on every load -- verified
+    // in game across two sessions and again across a save/reload -- so a once-per-session
+    // write silently loses the bonus the moment the player saves and comes back.
+    //
+    // FLOOR SEMANTICS, not addition. Writing `current + ours` every world entry would stack
+    // (32B, then 64B, then 96B...) if the hook ever runs twice for one load. Instead we raise
+    // the slot to at least our value and never lower it, which is idempotent and also
+    // respects anything the game itself put there -- the same additive-floor rule the set
+    // bonus fix uses. If the game ever supplies MORE than our value in this slot, we leave
+    // it alone rather than stomping it.
+    void ApplyStatBonuses() {
+        const float flMain = global_config.rare_cheats.stat_bonus_mainstat;
+        const float flVita = global_config.rare_cheats.stat_bonus_vitality;
+        if (flMain <= 0.0f && flVita <= 0.0f)
+            return;   // the only silent early-out: not asked for
+
+        if (GetPrimaryPlayer == nullptr || ACDTryToGet == nullptr ||
+            ACD_AttributesGetFloat == nullptr || ACD_AttributesSetFloat == nullptr) {
+            PRINT("[d3hack-statbonus] symbols not bound (%d)", 0)
+            return;
+        }
+        ActorCommonData *pACD = ACDTryToGet(GetPrimaryPlayer());
+        if (pACD == nullptr)
+            return;   // hero not up yet; this runs again on the next world entry
+
+        struct Row { const char *szName; s32 nBonus; float flWant; };
+        const Row kRows[] = {
+            {"Strength",     0x012, flMain},
+            {"Dexterity",    0x013, flMain},
+            {"Intelligence", 0x014, flMain},
+            {"Vitality",     0x015, flVita},
+        };
+
+        static int s_nApplied = 0;
+        int        nChanged   = 0;
+        for (const Row &r : kRows) {
+            if (r.flWant <= 0.0f)
+                continue;
+            const auto  tKey = MakeAttribKey(static_cast<Attrib>(r.nBonus));
+            const float flNow = ACD_AttributesGetFloat(pACD, tKey);
+            if (flNow >= r.flWant)
+                continue;   // already at or above the floor -- leave it
+            ACD_AttributesSetFloat(pACD, tKey, r.flWant);
+            ++nChanged;
+            // Log the first few applications only. This runs on every world entry, and a
+            // per-entry log line for the rest of the session is noise.
+            if (s_nApplied < 8)
+                PRINT("[d3hack-statbonus] %-13s %ld -> %ld", r.szName,
+                      static_cast<s64>(flNow), static_cast<s64>(r.flWant))
+        }
+        if (nChanged > 0 && s_nApplied < 8) {
+            ++s_nApplied;
+            if (s_nApplied == 8)
+                PRINT("[d3hack-statbonus] (further re-applications will not be logged) (%d)", 0)
+        }
+    }
+
+    // d3hack-custom: WHICH attribute actually drives damage?
+    //
+    // WHY THIS EXISTS. StatBonusMainStat successfully puts 32 billion into the main stat --
+    // measured, the total reads 32,000,180,224 -- and damage does not move. The reason is
+    // visible in the game's own formula set: main stat feeds only THREE scripted attributes,
+    //     Armor_Total                   = FLOOR((Armor + Armor_Item + Str_Total + Dex_Total) * ...)
+    //     Resistance_From_Intelligence  = Int_Total * 0.1
+    //     Hitpoints_Total_From_Vitality = Vit_Total * Hitpoints_Factor_Vitality
+    // and NOT damage. In D3 the 1%-damage-per-point rule is applied in native damage code,
+    // not through the attribute formula engine, so a bonus parked in the stat reaches armour
+    // and health and stops there.
+    //
+    // PART 1 logs the derived chain, which distinguishes two very different failures:
+    //   - Armor/HP DID move  -> the write propagates fine; damage simply does not read it.
+    //   - Armor/HP did NOT   -> the formula engine never recomputed, and the stat bonus is
+    //                           cosmetic even for armour. Different problem entirely.
+    //
+    // PART 2 writes a test multiplier into each damage candidate IN TURN and logs weapon
+    // damage after each, so one boot says which one moves it rather than five boots.
+    // 0x5A8 is known live: the Shadow's Mantle work measured it carrying 61.000 during
+    // damage calculation, read at 0x97B6AC.
+    //
+    // Caveat worth stating: the MULTIPLICATIVE_* family may apply at hit time rather than to
+    // the weapon-damage attribute, in which case the observable below will not move even
+    // though the attribute works. Those have to be judged from actual hits.
+    void ProbeDamageRoute() {
+        if (!global_config.rare_cheats.damage_route_probe)
+            return;   // the only silent early-out: not asked for
+        static bool s_bDone = false;
+        if (s_bDone)
+            return;
+        if (GetPrimaryPlayer == nullptr || ACDTryToGet == nullptr ||
+            ACD_AttributesGetFloat == nullptr || ACD_AttributesSetFloat == nullptr)
+            return;
+        ActorCommonData *pACD = ACDTryToGet(GetPrimaryPlayer());
+        if (pACD == nullptr) {
+            PRINT("[d3hack-dmg] player ACD not up yet, retrying next world (%d)", 0)
+            return;
+        }
+        s_bDone = true;
+
+        struct Row { const char *szName; s32 nAttr; };
+
+        // PART 1 -- did the stat bonus reach anything at all?
+        const Row kChain[] = {
+            {"Dexterity",          0x00B}, {"Dexterity_Total",     0x00F},
+            {"Dexterity_Bonus",    0x013}, {"Armor_Total",         0x026},
+            {"Resist_From_Int",    0x062}, {"HP_From_Vitality",    0x076},
+            {"HP_Max_Total",       0x07C}, {"WeaponDmgMinTotAll",  0x0E9},
+            {"DamageMinTotalAll",  0x0DA},
+        };
+        PRINT("[d3hack-dmg] --- derived chain (is the stat bonus propagating?) --- (%d)", 0)
+        for (const Row &r : kChain)
+            PRINT("[d3hack-dmg]   %-20s = %ld", r.szName,
+                  static_cast<s64>(ACD_AttributesGetFloat(pACD, MakeAttribKey(static_cast<Attrib>(r.nAttr)))))
+
+        // PART 2 -- write a multiplier into each candidate, one at a time.
+        // 100.0 means +10000% in this system (the 0x5A8 reading of 61.0 was 1 + 60).
+        const Row kCand[] = {
+            {"DmgWeaponPercentBonus", 0x0F0},
+            {"DmgWeaponPercentAll",   0x0F1},
+            {"DmgWeaponPercentTotal", 0x0F2},
+            {"MultDmgPercentBonus",   0x5A7},
+            {"MultDmgPercentPlayer",  0x5A9},
+        };
+        const auto tObs = MakeAttribKey(static_cast<Attrib>(0x0E9));   // weapon dmg min, all
+        PRINT("[d3hack-dmg] --- damage candidates (observable = WeaponDmgMinTotAll) --- (%d)", 0)
+        for (const Row &r : kCand) {
+            const auto  tKey    = MakeAttribKey(static_cast<Attrib>(r.nAttr));
+            const float flWas   = ACD_AttributesGetFloat(pACD, tKey);
+            const float flObsB4 = ACD_AttributesGetFloat(pACD, tObs);
+            ACD_AttributesSetFloat(pACD, tKey, 100.0f);
+            const float flNow   = ACD_AttributesGetFloat(pACD, tKey);
+            const float flObsAf = ACD_AttributesGetFloat(pACD, tObs);
+            PRINT("[d3hack-dmg]   %-22s (0x%03X) %ld -> %ld   observable %ld -> %ld%s",
+                  r.szName, static_cast<u32>(r.nAttr),
+                  static_cast<s64>(flWas), static_cast<s64>(flNow),
+                  static_cast<s64>(flObsB4), static_cast<s64>(flObsAf),
+                  (flObsAf != flObsB4) ? "   <== MOVED" : "")
+        }
+        PRINT("[d3hack-dmg] done. A candidate marked MOVED drives weapon damage directly; "
+              "the MULTIPLICATIVE ones may still work at hit time without moving this (%d)", 0)
+    }
+
+    // d3hack-custom: how do we read the player's paragon investment at runtime?
+    //
+    // There is no PARAGON_LEVEL attribute -- the attribute table has only Paragon_Bonus
+    // (0x522) and Paragon_Bonus_Points_Available (0x523), and 0x522 is PARAMETERISED. The
+    // game's own summing loop at 0x527410 builds a key with 0x69AEC0(0x522, <list entry>)
+    // and accumulates per category, so the parameter is a per-bonus index rather than a
+    // category. Rather than guess which, read a wide sweep once and look.
+    //
+    // Both are INT attributes (0x522/0x523 appear in the int-getter scan), so this uses
+    // ACD_AttributesGetInt -- NOT the float getter. Reading an int attribute through the
+    // float accessor would reinterpret its bits and produce nonsense, which is the mirror
+    // of the mistake that cost this project six probes in the other direction.
+    void ProbeParagonPoints() {
+        if (!global_config.rare_cheats.paragon_points_probe)
+            return;   // the only silent early-out: not asked for
+        static bool s_bDone = false;
+        if (s_bDone)
+            return;
+        if (GetPrimaryPlayer == nullptr || ACDTryToGet == nullptr || ACD_AttributesGetInt == nullptr)
+            return;
+        ActorCommonData *pACD = ACDTryToGet(GetPrimaryPlayer());
+        if (pACD == nullptr) {
+            PRINT("[d3hack-parapt] player ACD not up yet, retrying next world (%d)", 0)
+            return;
+        }
+        s_bDone = true;
+
+        // param -1 is the unparameterised form; 0..31 covers the 28 paragon bonus records
+        // with margin.
+        PRINT("[d3hack-parapt] --- Paragon_Bonus 0x522 (non-zero only) --- (%d)", 0)
+        s64 nSum = 0;
+        int nSeen = 0;
+        for (s32 p = -1; p < 32; ++p) {
+            const s64 v = static_cast<s64>(
+                ACD_AttributesGetInt(pACD, MakeAttribKey(static_cast<Attrib>(0x522), p)));
+            if (v == 0)
+                continue;
+            ++nSeen;
+            if (p >= 0)
+                nSum += v;
+            PRINT("[d3hack-parapt]   0x522 param %-3d = %ld", p, v)
+        }
+        PRINT("[d3hack-parapt]   %d non-zero, sum over params 0..31 = %ld", nSeen, nSum)
+
+        PRINT("[d3hack-parapt] --- Paragon_Bonus_Points_Available 0x523 --- (%d)", 0)
+        for (s32 p = -1; p < 8; ++p) {
+            const s64 v = static_cast<s64>(
+                ACD_AttributesGetInt(pACD, MakeAttribKey(static_cast<Attrib>(0x523), p)));
+            if (v != 0)
+                PRINT("[d3hack-parapt]   0x523 param %-3d = %ld", p, v)
+        }
+        PRINT("[d3hack-parapt] done -- whichever of these tracks your paragon is what the "
+              "bonus will scale from (%d)", 0)
+    }
+
     void ShiftSetBonusTiers() {
         if (!global_config.rare_cheats.set_bonus_tier_shift)
             return;

@@ -3715,9 +3715,54 @@ namespace d3 {
     // PROVE IT FIRST. Three separate features in this fork were built on a layer that logged
     // convincingly and turned out to be downstream of the decision. So this is read-only for
     // now: log the value, what the game produced from it, and the caller.
+    // d3hack-custom: damage measurement.
+    //
+    // Records the raw float of every number the game formats, and after N samples prints a
+    // summary: count, mean, and the ten largest seen. Run it once with the damage features
+    // off and once with them on, and the ratio of the top values IS the measured effect --
+    // no reading abbreviated text off a screen, and no judging "does that feel bigger".
+    //
+    // A rolling top-10 rather than a full sample buffer: 1000 floats is 4 KB of static that
+    // would sit in .bss forever for a diagnostic, and the tail is not interesting. Insertion
+    // is a 10-element walk on a path that already allocates a CRefString, so it is noise by
+    // comparison.
+    inline float g_arDmgTop[10]  = {};
+    inline int   g_nDmgSeen      = 0;
+    inline s64   g_nDmgSum       = 0;
+    inline bool  g_bDmgReported  = false;
+
+    inline void DamageCaptureSample(float flValue) {
+        const int nWant = global_config.rare_cheats.damage_capture_samples;
+        if (nWant <= 0 || g_bDmgReported)
+            return;
+        if (!(flValue > 0.0f))
+            return;   // zeros and NaNs are not damage
+
+        ++g_nDmgSeen;
+        g_nDmgSum += static_cast<s64>(flValue);
+        if (flValue > g_arDmgTop[9]) {
+            int i = 9;
+            while (i > 0 && g_arDmgTop[i - 1] < flValue) {
+                g_arDmgTop[i] = g_arDmgTop[i - 1];
+                --i;
+            }
+            g_arDmgTop[i] = flValue;
+        }
+        if (g_nDmgSeen < nWant)
+            return;
+
+        g_bDmgReported = true;
+        PRINT("[d3hack-measure] ==== %d samples ====", g_nDmgSeen)
+        PRINT("[d3hack-measure] mean = %ld", g_nDmgSum / (g_nDmgSeen > 0 ? g_nDmgSeen : 1))
+        for (int i = 0; i < 10; ++i)
+            PRINT("[d3hack-measure] top%-2d = %ld", i + 1, static_cast<s64>(g_arDmgTop[i]))
+        PRINT("[d3hack-measure] ==== compare top1 across runs; the ratio is the effect (%d)", 0)
+    }
+
     HOOK_DEFINE_TRAMPOLINE(NumberFormatProbeHook) {
         static auto Callback(float flValue, BOOL bUseMillions, BOOL bIncludeSpecialChar)
             -> CRefString {
+            DamageCaptureSample(flValue);
             CRefString tOut = Orig(flValue, bUseMillions, bIncludeSpecialChar);
 
             // ---- SHOW ONLY THE TOP N MAGNITUDES ------------------------------------------
@@ -4243,6 +4288,22 @@ namespace d3 {
         }
     };
 
+    // d3hack-custom: MEASURED AND REMOVED -- do not add a damage multiplier here again.
+    //
+    // A DamageMultiplier / DamagePerMainStat pair briefly lived on this hook, scaling the
+    // 0x5A8 value to boost damage. Three controlled 1000-sample captures killed it:
+    //
+    //   paragon 5/pt, no multiplier   top1 = 3.13e14
+    //   paragon 30/pt, no multiplier  top1 = 1.31e15    <- 3.3-4.2x, from paragon ALONE
+    //   paragon 30/pt, multiplier on  top1 = 6.55e18    <- absurd, because it double-counted
+    //
+    // The game ALREADY scales damage by main stat (the tooltip rule, 1 point = +1% damage).
+    // So a multiplier here applies that rule a second time. ParagonMainStatPerPoint is the
+    // correct and complete dial: raise it and stat, armour, health and damage all move
+    // together by the game's own formula.
+    //
+    // The feature was built on "my damage doesn't reflect those numbers", which was an
+    // impression, not a measurement. Measure first.
     HOOK_DEFINE_INLINE(SetBonusAnyWeapon) {
         static void Callback(exl::hook::InlineFloatCtx *ctx) {
             if (s_nPendingSkill != kShadowGatedSkill)
@@ -11858,6 +11919,7 @@ namespace d3 {
             }
             if (global_config.rare_cheats.number_format_probe ||
                 global_config.rare_cheats.big_number_suffixes ||
+                global_config.rare_cheats.damage_capture_samples > 0 ||
                 global_config.rare_cheats.damage_number_tiers > 0) {
                 NumberFormatProbeHook::InstallAtFuncPtr(FormatTruncatedNumber);
                 PRINT("[d3hack-numfmt] FormatTruncatedNumber hooked at 0x34C8D0 (suffixes=%d "

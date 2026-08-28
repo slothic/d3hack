@@ -37,6 +37,12 @@ namespace d3 {
     void InspectSetBonuses();   // d3hack-custom
     void InspectParagonBonuses();  // d3hack-custom
     void PatchParagonStatValues();  // d3hack-custom
+    void ProbeStatBonusSlots();     // d3hack-custom
+    void ApplyStatBonuses();        // d3hack-custom
+    void ProbeDamageRoute();        // d3hack-custom
+    void ProbeParagonPoints();      // d3hack-custom
+    void InspectParagonBonuses();  // d3hack-custom
+    void PatchParagonStatValues();  // d3hack-custom
     void ShiftSetBonusTiers();  // d3hack-custom
     void DumpMonsterAffixes();  // d3hack-custom
     void DisableMonsterAffixes();  // d3hack-custom

@@ -542,6 +542,13 @@ namespace {
             t.insert("ParagonStatCap", config.rare_cheats.paragon_stat_cap);
             t.insert("ParagonNoReset", config.rare_cheats.paragon_no_reset);
             t.insert("ParagonBonusInspect", config.rare_cheats.paragon_bonus_inspect);
+            t.insert("StatBonusMainStat", static_cast<double>(config.rare_cheats.stat_bonus_mainstat));
+            t.insert("StatBonusVitality", static_cast<double>(config.rare_cheats.stat_bonus_vitality));
+            t.insert("StatBonusProbe", config.rare_cheats.stat_bonus_probe);
+            t.insert("DamageRouteProbe", config.rare_cheats.damage_route_probe);
+            t.insert("ParagonPointsProbe", config.rare_cheats.paragon_points_probe);
+            t.insert("DamageCaptureSamples", static_cast<s64>(config.rare_cheats.damage_capture_samples));
+            t.insert("StatBonusProbeValue", static_cast<double>(config.rare_cheats.stat_bonus_probe_value));
             t.insert("ParagonMainStatPerPoint", static_cast<double>(config.rare_cheats.paragon_mainstat_per_point));
             t.insert("ParagonVitalityPerPoint", static_cast<double>(config.rare_cheats.paragon_vitality_per_point));
             root.insert("rare_cheats", std::move(t));
@@ -687,6 +694,13 @@ void PatchConfig::ApplyTable(const toml::table &table) {
         rare_cheats.sno_name_list            = ReadString(*section, {"SnoNameList"}, rare_cheats.sno_name_list);
         rare_cheats.set_bonus_inspect        = ReadString(*section, {"SetBonusInspect"}, rare_cheats.set_bonus_inspect);
         rare_cheats.paragon_bonus_inspect    = ReadBool(*section, {"ParagonBonusInspect"}, rare_cheats.paragon_bonus_inspect);
+        rare_cheats.stat_bonus_mainstat      = static_cast<float>(ReadDouble(*section, {"StatBonusMainStat"}, rare_cheats.stat_bonus_mainstat, 0.0, 1.0e30));
+        rare_cheats.stat_bonus_vitality      = static_cast<float>(ReadDouble(*section, {"StatBonusVitality"}, rare_cheats.stat_bonus_vitality, 0.0, 1.0e30));
+        rare_cheats.stat_bonus_probe         = ReadBool(*section, {"StatBonusProbe"}, rare_cheats.stat_bonus_probe);
+        rare_cheats.damage_route_probe       = ReadBool(*section, {"DamageRouteProbe"}, rare_cheats.damage_route_probe);
+        rare_cheats.paragon_points_probe     = ReadBool(*section, {"ParagonPointsProbe"}, rare_cheats.paragon_points_probe);
+        rare_cheats.damage_capture_samples   = ReadI32(*section, {"DamageCaptureSamples"}, rare_cheats.damage_capture_samples, 0, 100000);
+        rare_cheats.stat_bonus_probe_value   = static_cast<float>(ReadDouble(*section, {"StatBonusProbeValue"}, rare_cheats.stat_bonus_probe_value, -1.0, 1.0e30));
         // Ceiling derived in config.hpp: 3.3M max spendable points x 650 = INT32_MAX.
         rare_cheats.paragon_mainstat_per_point = static_cast<float>(ReadDouble(*section, {"ParagonMainStatPerPoint"}, rare_cheats.paragon_mainstat_per_point, 0.0, static_cast<double>(kParagonPerPointMax)));
         rare_cheats.paragon_vitality_per_point = static_cast<float>(ReadDouble(*section, {"ParagonVitalityPerPoint"}, rare_cheats.paragon_vitality_per_point, 0.0, static_cast<double>(kParagonPerPointMax)));

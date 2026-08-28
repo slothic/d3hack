@@ -1,5 +1,5 @@
 ===========================================================================
- D3HACK v3.8
+ D3HACK v3.16
  A gameplay mod for Diablo III: Eternal Collection (Nintendo Switch)
 ===========================================================================
 
@@ -68,6 +68,8 @@ that controls it.
    Over-limit categories are not wiped on load ... ParagonNoReset = true
    Main stat per paragon point (stock 5) ......... ParagonMainStatPerPoint = 30.0
    Vitality per paragon point (stock 5) .......... ParagonVitalityPerPoint = 30.0
+   Flat main stat bonus, billions are fine ....... StatBonusMainStat = 32000000000
+   Flat Vitality bonus, same .................... StatBonusVitality = 32000000000
 
  ALTAR OF RITES
    Eight seals take crafting materials instead
@@ -428,6 +430,61 @@ PARAGON BONUS INSPECTOR
     future patch moves them.
 
 ---------------------------------------------------------------------------
+ HUGE STATS
+---------------------------------------------------------------------------
+
+A FLAT MAIN STAT / VITALITY BONUS THAT CAN BE ENORMOUS
+        StatBonusMainStat = 32000000000    0 = off
+        StatBonusVitality = 32000000000    0 = off
+
+    Main stat covers Strength, Dexterity and Intelligence -- whichever your class
+    actually uses is the one you will see move.
+
+    Measured in game: 32,000,000,000 gave a Dexterity total of 32,000,180,224.
+    No overflow, no clamp, no negative.
+
+WHY THIS IS SAFE WHEN A BIG BASE STAT IS NOT
+    The game keeps your BASE stats and your BONUS stats in different places, and
+    only the base ones pass through a piece of code that cannot handle numbers
+    above about 2.1 billion. Past that it does not merely clamp -- it rolls over
+    to a NEGATIVE number and writes that back onto your character.
+
+    This setting writes to the BONUS slot, which that code never touches, and the
+    game's own total already adds the bonus in. So the number reaches your damage
+    by the game's own route and never goes near the part that breaks.
+
+YOUR SAVE FILE IS NEVER TOUCHED
+    The bonus slot is rebuilt from scratch every time you load -- it reads 0 on a
+    fresh load even if it was huge when you saved. Verified by saving, reloading,
+    and watching it come back empty.
+
+    So the number lives in this config file, not in your character. It is
+    re-applied on every world entry, including after a save and reload. Set both
+    values to 0 and your character is exactly as it was -- there is nothing to
+    undo and nothing left behind.
+
+    It also never stacks. Each application raises the slot TO the configured value
+    rather than adding to it, and if the game ever puts something bigger there,
+    that is left alone.
+
+HOW BIG CAN IT GO
+    Far bigger than you need. The stat is stored as a 32-bit float, which reaches
+    about 3.4e38 -- more range than a 64-bit whole number.
+
+    What it does NOT keep past about 16.7 million is exact whole numbers. Above
+    that it counts in steps, which is why 32,000,000,000 reads back as
+    32,000,180,224. That is rounding, not an error, and it is invisible in play.
+
+STATBONUSPROBE (diagnostics, off by default)
+        StatBonusProbe = true
+        StatBonusProbeValue = 32000000000    -1 = read only, write nothing
+
+    Writes a test value into all four bonus slots and logs base, bonus and total
+    for each, so you can see exactly what the game did with it. This is how the
+    feature above was proven. Set the value to -1 to observe without writing,
+    which is what you want if you are checking whether something survived a save.
+
+---------------------------------------------------------------------------
  PARAGON AND GEMS
 ---------------------------------------------------------------------------
 
@@ -750,10 +807,126 @@ WHERE THE LOGS ARE
 
 
 ===========================================================================
- 6. WHAT CHANGED IN v3.8
+ 6. WHAT CHANGED IN v3.16
 ===========================================================================
 
 NEW FEATURES
+  * A flat main stat / Vitality bonus that can be enormous. Values in the
+    billions work: 32,000,000,000 was measured giving a Dexterity total of
+    32,000,180,224, with no overflow and no clamp.
+        StatBonusMainStat = 32000000000
+        StatBonusVitality = 32000000000
+    It writes to the BONUS attribute slots, not your base stats. The code
+    that recalculates base stats cannot handle numbers past about 2.1
+    billion -- it rolls over to a NEGATIVE value and writes that onto your
+    character. The bonus slots are never touched by it, and the game's own
+    total already adds them in, so the number reaches you by the game's own
+    route. See section 1 for the full explanation.
+
+  * Your save file is never modified by it. The bonus slot is rebuilt from
+    scratch on every load, so the value lives in this config and is
+    re-applied each time you enter a world. Set it to 0 and your character
+    is exactly as it was.
+
+DIAGNOSTICS
+  * StatBonusProbe / StatBonusProbeValue -- write a test value into the four
+    bonus slots and log base, bonus and total for each. -1 observes without
+    writing, for checking whether something survived a save.
+  * DamageCaptureSamples = 1000 -- capture N damage numbers and print count,
+    mean and the ten largest. Run it with a setting off and again with it on;
+    the ratio is the measured effect rather than an impression.
+  * ParagonBonusInspect, DamageRouteProbe, ParagonPointsProbe -- read-only
+    dumps used to find where paragon and damage values actually live.
+
+REMOVED BEFORE RELEASE
+  * DamageMultiplier and DamagePerMainStat existed briefly and were cut after
+    measurement. The game ALREADY scales damage by main stat (1 point = +1%
+    damage), so both double-counted a rule it applies itself. Three 1000-
+    sample captures showed paragon alone moving damage 3.3-4.2x with them
+    switched off. ParagonMainStatPerPoint is the correct and complete dial.
+
+FROM v3.15
+  * How much main stat and Vitality one paragon point grants, stock 5. This
+    applies to every point you have ALREADY spent, not just new ones --
+    measured at 29,072 Dexterity on stock and 173,347 at 30/point.
+        ParagonMainStatPerPoint = 30.0
+        ParagonVitalityPerPoint = 30.0
+    Because damage scales off main stat, this raises stat, armour, health
+    and damage together.
+  * Ultrawide and any other aspect ratio. Both the display mode and the HUD
+    aspect constant are patched -- doing only the first stretches the HUD.
+        AspectRatio = 2.3889      3440x1440.  1.7778 = 16:9, the default
+  * FIXED: roughly half the mod depended on an unrelated XP setting. A
+    310-line block containing 62 hook installs was gated on
+    ExperienceMultiplierHighGR > 1, which DEFAULTS to 1. Rift map bans,
+    density, free sockets, follower no-aggro, Momentum, the big-number
+    suffixes and every probe worked only because the shipped config happens
+    to set 2. Setting it to 1 silently disabled all of them.
+  * CONTRIBUTING.md added, written to be handed to an AI assistant.
+
+FROM v3.14
+  * Momentum documented. The feature shipped in v3.13 but appeared nowhere in
+    this README, so nobody reading the docs could discover the setting.
+
+FROM v3.13
+  * Gears of Dreadlands keeps its Momentum, confirmed working. Stacks ratchet
+    up and hold while strafing instead of bleeding away.
+        MomentumAutoFireEvery = 8
+    Fourth approach and the first that works: it holds the stack against
+    decay and then builds, at the point the game stores the counter, rather
+    than trying to convince the game a shot was fired.
+  * The 55 maps a Greater Rift can actually roll are now marked. The list had
+    164 entries, most of which are Nephalem-only -- which is why preferring
+    them appeared to do nothing.
+
+FROM v3.12
+  * Damage numbers keep abbreviating past T: Q, Qi, Sx, Sp, Oc, No, Dc, Ud.
+        BigNumberSuffixes = true
+  * Show only the top N magnitudes. Once you hit for T the M numbers are
+    noise, so anything more than N-1 tiers below your biggest hit is hidden.
+        DamageNumberTiers = 2
+  * FIXED: six of the shipped rift-map float values were wrong -- four
+    Nephalem values on Greater Rift maps and two maps not in the GR pool at
+    all. Replaced with the game's own data, read out of the romfs.
+
+FROM v3.11
+  * Rift density by map size, so small maps are not swamped and large ones
+    are not empty.
+        RiftDensitySmall = 5    RiftDensityNormal = 10    RiftDensityLarge = 20
+  * FIXED: CombatLog = true was inert. The kill feed rode on a diagnostic
+    flag (EliteEventProbe), so with the shipped combination neither the
+    engaged line nor the kill line could ever appear. Map names were also
+    crowding the feed and no longer are.
+
+FROM v3.10
+  * Greater Rift density actually works. The multiplier raised since v3.3
+    was on a NON-RIFT spawner -- 4 density calls against 21,000 real spawns
+    on rift floors, which is why 3x, 10x and 100x were indistinguishable in
+    a Greater Rift. Found by walking the live stack at the spawn funnel;
+    static reading could not find it because the path runs through a
+    function pointer.
+  * Rift and world density are separate settings now, and the ceiling is
+    raised from 20.
+        GreaterRiftDensityMultiplier = 3     WorldDensityMultiplier = 1
+  * FIXED: per-map overrides were capped at 64, below the global values they
+    are supposed to beat.
+
+FROM v3.9
+  * Gears of Dreadlands Momentum, and rift map bans that work off the machine
+    they were developed on.
+  * FIXED: GreaterRiftDensityRiftsOnly turned density OFF everywhere instead
+    of restricting it to rifts. The gate tested a value that is always -1 at
+    that point. What hid it is worth recording: the skip message advised
+    turning the setting off, which made the symptom disappear and let the bug
+    survive -- a workaround printed by the code that needs fixing reads as
+    documentation.
+  * FIXED: MapDensityOverrides had never applied, and the log could not show
+    it. Same dead gate.
+  * FIXED: rift map substitution was dead unless WorldGenProbe was also on.
+  * FIXED: EmpoweredGemUpgrades fired on ordinary rifts -- the gate was not
+    an empowerment test.
+
+FROM v3.8
   * Ban the rift maps you do not want to play. BannedRiftMaps has existed
     for a while but could not actually enforce anything -- every previous
     attempt swapped the map too late, after the floor had already been
